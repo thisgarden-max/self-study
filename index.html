@@ -9,6 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{
   --logo:url("data:image/png;base64,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");
@@ -312,6 +314,7 @@ td.num,th.num{text-align:right;font-family:var(--f-data)}
           <button data-tab="roster">명렬표</button>
           <button data-tab="settings">설정</button>
         </div>
+        <span id="conn-badge" style="flex:none;font-family:var(--f-data);font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:99px;white-space:nowrap"></span>
         <button class="btn btn-ghost btn-sm" id="t-exit" style="flex:none">나가기</button>
       </div>
     </nav>
@@ -339,37 +342,61 @@ td.num,th.num{text-align:right;font-family:var(--f-data)}
 </div>
 <div id="toast"></div>
 <script>
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyDlDO-4oFi0WQQemJ6lFpeMaszLo7IriE4",
+  authDomain:"poongsann.firebaseapp.com",
+  projectId:"poongsann",
+  storageBucket:"poongsann.firebasestorage.app",
+  messagingSenderId:"239243704080",
+  appId:"1:239243704080:web:33e31b4dcd3f78d5479795"
+};
 const DB=(()=>{
-  const remote=(typeof window!=='undefined'&&window.storage)?window.storage:null;
   const LP='sdl::';
   const lsOK=(()=>{try{localStorage.setItem('__t','1');localStorage.removeItem('__t');return true}catch(e){return false}})();
   const mem={};
   const enc=v=>JSON.stringify(v),dec=v=>{try{return JSON.parse(v)}catch(e){return v}};
+  // 키를 Firestore 문서 ID로 안전 변환 (슬래시 등 금지문자 회피)
+  const encId=k=>encodeURIComponent(k).replace(/\./g,'%2E').replace(/%/g,'_');
+  let fs=null, ready=false;
+  function initFirebase(){
+    try{
+      if(typeof firebase==='undefined'||!firebase.initializeApp) return false;
+      if(!firebase.apps||!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      fs=firebase.firestore();
+      ready=true;
+      return true;
+    }catch(e){console.warn('Firebase init 실패, 로컬 저장으로 동작:',e);fs=null;ready=false;return false}
+  }
+  const col=()=>fs.collection('shared');
+  // 로컬 폴백 (shared=false 인 me, 또는 Firebase 미연결 시)
+  function lget(k,shared){const key=LP+(shared?'s:':'p:')+k;if(lsOK){const v=localStorage.getItem(key);return v===null?null:dec(v)}return mem[key]??null}
+  function lset(k,v,shared){const key=LP+(shared?'s:':'p:')+k;if(lsOK){try{localStorage.setItem(key,enc(v));return true}catch(e){return false}}mem[key]=v;return true}
+  function ldel(k,shared){const key=LP+(shared?'s:':'p:')+k;if(lsOK)localStorage.removeItem(key);else delete mem[key];return true}
+  function llist(prefix,shared){const head=LP+(shared?'s:':'p:');const src=lsOK?Object.keys(localStorage):Object.keys(mem);return src.filter(k=>k.startsWith(head+prefix)).map(k=>k.slice(head.length))}
+
   async function get(k,shared=true){
-    if(remote){try{const r=await remote.get(k,shared);return r?dec(r.value):null}catch(e){return null}}
-    const key=LP+(shared?'s:':'p:')+k;
-    if(lsOK){const v=localStorage.getItem(key);return v===null?null:dec(v)}
-    return mem[key]??null;
+    if(shared&&ready){try{const d=await col().doc(encId(k)).get();return d.exists?d.data().v:null}catch(e){return lget(k,shared)}}
+    return lget(k,shared);
   }
   async function set(k,v,shared=true){
-    if(remote){try{await remote.set(k,enc(v),shared);return true}catch(e){return false}}
-    const key=LP+(shared?'s:':'p:')+k;
-    if(lsOK){try{localStorage.setItem(key,enc(v));return true}catch(e){return false}}
-    mem[key]=v;return true;
+    if(shared&&ready){try{await col().doc(encId(k)).set({k,v});lset(k,v,shared);return true}catch(e){return lset(k,v,shared)}}
+    return lset(k,v,shared);
   }
   async function del(k,shared=true){
-    if(remote){try{await remote.delete(k,shared);return true}catch(e){return false}}
-    const key=LP+(shared?'s:':'p:')+k;
-    if(lsOK){localStorage.removeItem(key);return true}
-    delete mem[key];return true;
+    if(shared&&ready){try{await col().doc(encId(k)).delete();ldel(k,shared);return true}catch(e){return ldel(k,shared)}}
+    return ldel(k,shared);
   }
   async function list(prefix='',shared=true){
-    if(remote){try{const r=await remote.list(prefix,shared);return r&&r.keys?r.keys:[]}catch(e){return []}}
-    const head=LP+(shared?'s:':'p:');
-    const src=lsOK?Object.keys(localStorage):Object.keys(mem);
-    return src.filter(k=>k.startsWith(head+prefix)).map(k=>k.slice(head.length));
+    if(shared&&ready){
+      try{
+        // prefix 범위 쿼리: k >= prefix AND k < prefix+\uf8ff
+        const snap=await col().orderBy('k').startAt(prefix).endAt(prefix+'\uf8ff').get();
+        return snap.docs.map(d=>d.data().k).filter(k=>typeof k==='string'&&k.startsWith(prefix));
+      }catch(e){return llist(prefix,shared)}
+    }
+    return llist(prefix,shared);
   }
-  return {get,set,del,list,isRemote:!!remote};
+  return {get,set,del,list,initFirebase,get isRemote(){return ready}};
 })();
 
 const $=s=>document.querySelector(s);
@@ -417,7 +444,7 @@ async function loadCore(){
   EXCL=expandExclusions(CFG.exclusions);
   ROSTER=Array.isArray(ros)?ros:[];
   if(!CFG.supSeeded){
-    for(const dk in DEFAULT_SUP){const ex=await DB.get('sup:'+dk);if(ex==null)await DB.set('sup:'+dk,DEFAULT_SUP[dk])}
+    for(const dk in DEFAULT_SUP){await DB.set('sup:'+dk,DEFAULT_SUP[dk])}
     CFG.supSeeded=true; await DB.set('config',CFG);
   }
   applyBrand();
@@ -553,10 +580,25 @@ async function renderMyStats(){
   box.innerHTML=`<div class="eyebrow" style="margin:var(--s5) 0 var(--s3);text-align:center">이번 달 나의 기록</div><div class="mystats"><div class="mystat"><div class="n">${myMonth}<i>일</i></div><div class="k">참여한 날</div></div><div class="mystat"><div class="n">${fmtHours(myMonth*sessionMinutes())}<i>시간</i></div><div class="k">누적 시간</div></div><div class="mystat"><div class="n">${rate}<i>%</i></div><div class="k">참여율</div></div></div>`;
 }
 
+function updateConnBadge(){
+  const el=$('#conn-badge');if(!el)return;
+  if(DB.isRemote){el.textContent='● 온라인 연결됨';el.style.background='var(--lamp-tint)';el.style.color='var(--lamp-ink)'}
+  else{el.textContent='● 이 기기에만 저장';el.style.background='var(--alert-tint)';el.style.color='var(--alert)'}
+}
 $('#st-teacher').onclick=showTeacher;
 $('#lock-back').onclick=showStudent;
 $('#st-change').onclick=async()=>{ME=null;await DB.del('me',false);renderStudent()};
-$('#pin-go').onclick=async()=>{const v=$('#pin-in').value.trim();if(hashPin(v)!==CFG.pin)return toast('PIN이 맞지 않습니다.',true);$('#pin-in').value='';$('#lock').classList.add('hidden');$('#t-app').classList.remove('hidden');openTab('today')};
+$('#pin-go').onclick=async()=>{
+  const v=$('#pin-in').value.trim();
+  // 다른 기기에서 바뀐 PIN을 반영하기 위해 최신 설정을 먼저 읽어옴
+  const fresh=await DB.get('config');
+  if(fresh)CFG={...CFG,...fresh};
+  EXCL=expandExclusions(CFG.exclusions);
+  if(hashPin(v)!==CFG.pin)return toast('PIN이 맞지 않습니다.',true);
+  $('#pin-in').value='';$('#lock').classList.add('hidden');$('#t-app').classList.remove('hidden');
+  updateConnBadge();
+  openTab('today');
+};
 $('#pin-in').addEventListener('keydown',e=>{if(e.key==='Enter')$('#pin-go').click()});
 $('#t-exit').onclick=showStudent;
 let curTab='today',pollTimer=null;
@@ -721,7 +763,7 @@ function renderSettings(){
     <p class="hint" style="margin-top:var(--s5);max-width:640px">기록은 이 앱의 저장소에 쌓입니다. 학기가 끝날 때, 혹은 한 달에 한 번은 <b>전체 기록 백업</b>을 눌러 엑셀 파일로 따로 보관해 두시길 권합니다.</p>`;
   $('#ex-add').onclick=async()=>{const from=$('#ex-from').value;if(!from)return toast('시작일을 골라 주세요.',true);const to=$('#ex-to').value||'',reason=$('#ex-reason').value.trim()||'제외일';CFG.exclusions=[...(CFG.exclusions||[]),{from,...(to&&to!==from?{to}:{}),reason}].sort((a,b)=>a.from.localeCompare(b.from));EXCL=expandExclusions(CFG.exclusions);await DB.set('config',CFG);toast('제외일을 추가했습니다.');renderSettings()};
   $$('[data-ex-del]').forEach(b=>b.onclick=async()=>{CFG.exclusions=(CFG.exclusions||[]).filter((_,i)=>i!==Number(b.dataset.exDel));EXCL=expandExclusions(CFG.exclusions);await DB.set('config',CFG);toast('제외일을 삭제했습니다.');renderSettings()});
-  $('#cf-save').onclick=async()=>{const pin=$('#cf-pin').value.trim();if(pin&&!/^\d{4,6}$/.test(pin))return toast('PIN은 숫자 4~6자리로 넣어 주세요.',true);const days=$$('.cf-day:checked').map(c=>Number(c.value)).sort();const start=$('#cf-start').value||'18:00',end=$('#cf-end').value||'21:00';CFG={...CFG,school:$('#cf-school').value.trim()||'풍산고등학교',place:$('#cf-place').value.trim()||'4층 지혜의 숲',baseUrl:$('#cf-url').value.trim(),startTime:start,endTime:end,sessionMin:Math.max(0,mins(end)-mins(start)),lateAfter:Number($('#cf-late').value)||0,ttlMin:Math.max(1,Number($('#cf-ttl').value)||5),startDate:$('#cf-sd').value||CFG.startDate,endDate:$('#cf-ed').value||CFG.endDate,opDays:days.length?days:[1,2,3,4],useSignupDays:$('#cf-usedays').checked};if(pin)CFG.pin=hashPin(pin);await DB.set('config',CFG);EXCL=expandExclusions(CFG.exclusions);applyBrand();toast('저장했습니다.');renderSettings()};
+  $('#cf-save').onclick=async()=>{const pin=$('#cf-pin').value.trim();if(pin&&!/^\d{4,6}$/.test(pin))return toast('PIN은 숫자 4~6자리로 넣어 주세요.',true);const days=$$('.cf-day:checked').map(c=>Number(c.value)).sort();const start=$('#cf-start').value||'18:00',end=$('#cf-end').value||'21:00';CFG={...CFG,school:$('#cf-school').value.trim()||'풍산고등학교',place:$('#cf-place').value.trim()||'4층 지혜의 숲',baseUrl:$('#cf-url').value.trim(),startTime:start,endTime:end,sessionMin:Math.max(0,mins(end)-mins(start)),lateAfter:Number($('#cf-late').value)||0,ttlMin:Math.max(1,Number($('#cf-ttl').value)||5),startDate:$('#cf-sd').value||CFG.startDate,endDate:$('#cf-ed').value||CFG.endDate,opDays:days.length?days:[1,2,3,4],useSignupDays:$('#cf-usedays').checked};if(pin)CFG.pin=hashPin(pin);const ok=await DB.set('config',CFG);EXCL=expandExclusions(CFG.exclusions);applyBrand();updateConnBadge();if(!DB.isRemote)toast('이 기기에만 저장됨 — 온라인 연결이 안 됩니다.',true);else if(pin)toast('저장했습니다. 새 PIN이 모든 기기에 적용됩니다.');else toast('저장했습니다.');renderSettings()};
   $('#cf-backup').onclick=backupAll;
 }
 async function backupAll(){
@@ -738,7 +780,20 @@ async function backupAll(){
 }
 function downloadCSV(rows,filename){const body=rows.map(r=>r.map(c=>{const v=String(c??'');return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v}).join(',')).join('\r\n');const blob=new Blob(['\uFEFF'+body],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},400)}
 
-(async function init(){readUrlCode();await loadCore();ME=await DB.get('me',false);tickClock();setInterval(tickClock,20000);showStudent();setInterval(()=>{if(!$('#v-student').classList.contains('hidden'))renderStudent()},45000)})();
+(async function init(){
+  readUrlCode();
+  DB.initFirebase();
+  if(!DB.isRemote){
+    // Firebase 미연결 안내 (한 번만)
+    setTimeout(()=>toast('온라인 연결 실패 — 이 기기에만 저장됩니다.',true),1200);
+  }
+  await loadCore();
+  ME=await DB.get('me',false);
+  tickClock();setInterval(tickClock,20000);
+  showStudent();
+  // 학생 화면: 세션/출석 상태를 주기적으로 새로고침 (기기 간 동기화)
+  setInterval(()=>{if(!$('#v-student').classList.contains('hidden')&&!absentMode)renderStudent()},20000);
+})();
 </script>
 </body>
 </html>
