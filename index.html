@@ -442,7 +442,7 @@ const DEFAULT_SUP={"2026-08-31":"한두희","2026-09-01":"장미란","2026-09-03
 
 const DEFAULTS={
   school:'풍산고등학교', place:'4층 지혜의 숲', pin:hashPin('1234'), baseUrl:'',
-  startTime:'18:00', endTime:'21:00', sessionMin:180, lateAfter:15, ttlMin:5,
+  startTime:'18:00', endTime:'21:00', openTime:'17:30', sessionMin:180, lateAfter:15, ttlMin:5,
   startDate:'2026-08-31', endDate:'2026-12-03', opDays:[1,2,3,4], useSignupDays:false,
   autoOpen:true,
   supSeeded:false,
@@ -509,9 +509,11 @@ async function renderStudent(){
   if(!ME||!findStudent(ME)){renderPicker();return}
   $('#st-change').classList.remove('hidden');
   const me=findStudent(ME),rec=TODAY[ME],ab=ABSENT[ME],st=dayStatus(),signup=isSignupDay(me);
-  const cur=nowMin(),inWindow=st.open&&cur>=mins(CFG.startTime)&&cur<mins(CFG.endTime);
+  const cur=nowMin(),openAt=mins(CFG.openTime||CFG.startTime),inWindow=st.open&&cur>=openAt&&cur<mins(CFG.endTime);
   const autoOn=CFG.autoOpen&&inWindow;
-  const sessionOpen=autoOn||(LIVE&&!LIVE.expired),codeOK=autoOn||(sessionOpen&&urlCode&&LIVE&&urlCode===LIVE.code);
+  // 출석은 운영시간(inWindow) 안에서만 받는다. 자동개방이거나, 교사가 QR을 연 경우 모두 운영시간이어야 함.
+  const sessionOpen=inWindow&&(CFG.autoOpen||(LIVE&&!LIVE.expired));
+  const codeOK=sessionOpen&&(autoOn||(urlCode&&LIVE&&urlCode===LIVE.code));
   if(absentMode&&st.open&&!rec){
     stage.innerHTML=`
       <div class="me-card"><div class="me-tag">${me.g}학년 ${me.c}반 ${me.n}번</div><div class="me-name">${esc(me.name)}</div><div class="me-sub">오늘 참여할 수 없나요?</div></div>
@@ -532,24 +534,22 @@ async function renderStudent(){
   if(!st.open)banner=`<div class="period-banner off"><i class="pulse"></i><p>오늘은 자기주도학습 <b>운영일이 아닙니다</b>${st.reason?` · ${esc(st.reason)}`:''}.</p></div>`;
   else if(!signup)banner=`<div class="period-banner off"><i class="pulse"></i><p>오늘(${DOW[new Date().getDay()]})은 <b>신청한 요일이 아닙니다</b>. 참여를 원하면 출석해도 됩니다.</p></div>`;
   else if(ab&&!rec)banner=`<div class="period-banner excused"><i class="pulse"></i><p><b>사전 불참</b>으로 신고되어 있습니다 · ${esc(ab.reason)}${ab.detail?` (${esc(ab.detail)})`:''}</p></div>`;
-  else if(!sessionOpen){const before=st.open&&nowMin()<mins(CFG.startTime);banner=`<div class="period-banner"><i class="pulse"></i><p>${before?`출석은 <b>${CFG.startTime}부터</b> 받습니다. 조금만 기다려 주세요.`:`지금은 출석을 받고 있지 않습니다. ${CFG.autoOpen?'운영 시간에 다시 열립니다.':'<b>선생님이 QR을 띄우면</b> 열립니다.'}`}</p></div>`}
+  else if(!sessionOpen){const before=st.open&&nowMin()<mins(CFG.openTime||CFG.startTime);banner=`<div class="period-banner"><i class="pulse"></i><p>${before?`출석은 <b>${CFG.openTime||CFG.startTime}부터</b> 받습니다. 조금만 기다려 주세요.`:`지금은 출석을 받고 있지 않습니다. ${CFG.autoOpen?'운영 시간에 다시 열립니다.':'<b>선생님이 QR을 띄우면</b> 열립니다.'}`}</p></div>`}
   else banner=`<div class="period-banner live"><i class="pulse"></i><p><b>자기주도학습</b> 출석을 받는 중입니다 (${CFG.startTime}~${CFG.endTime}).</p></div>`;
   let action='';
   if(!st.open)action=`<div class="notice">${esc(CFG.place||'')}<br>다음 운영일에 다시 만나요.</div>`;
   else if(rec&&rec.out){const sm=studyMinutes(rec);action=`<div class="stamp"><div class="stamp-mark">완료</div><h2>${esc(me.name)} 학생, 오늘도 수고했어요</h2><p>${prettyTime(rec.t)} 입실 · ${prettyTime(rec.out)} 퇴실</p><p style="font-family:var(--f-display);font-size:22px;font-weight:800;color:var(--lamp-deep);margin-top:6px">오늘 공부 ${fmtDur(sm)}</p></div>`}
-  else if(rec){const late=isLate(rec.t);const canOut=sessionOpen&&codeOK;action=`<div class="stamp"><div class="stamp-mark">입실</div><h2>${esc(me.name)} 학생, 지금 공부 중</h2><p>${prettyTime(rec.t)} 입실${late?' · 지각':''} · 나갈 때 다시 찍어 주세요</p></div>${canOut?`<button class="tap" id="st-checkout">퇴실하기<small>지금 찍으면 공부시간이 기록됩니다</small></button>`:`<div class="notice">퇴실하려면 <b>화면의 QR을 다시 스캔</b>하거나 6자리 코드를 입력하세요.</div>${sessionOpen?`<div class="picker" style="margin-top:var(--s3)"><input class="input" id="st-code" maxlength="6" autocapitalize="characters" autocomplete="off" style="font-family:var(--f-data);font-size:20px;letter-spacing:.24em;text-align:center" placeholder="퇴실 코드"><button class="btn btn-primary" id="st-code-go2" style="width:100%;padding:12px;margin-top:var(--s2)">퇴실 코드 확인</button></div>`:''}`}`}
+  else if(rec){const late=isLate(rec.t);action=`<div class="stamp"><div class="stamp-mark">입실</div><h2>${esc(me.name)} 학생, 지금 공부 중</h2><p>${prettyTime(rec.t)} 입실${late?' · 지각':''} · 나갈 때 다시 찍어 주세요</p></div>${sessionOpen?`<button class="tap" id="st-checkout">퇴실하기<small>지금 찍으면 공부시간이 기록됩니다</small></button>`:`<div class="notice">퇴실은 <b>운영 시간에</b> QR을 다시 스캔하면 할 수 있어요.</div>`}`}
   else if(ab)action=`<div class="stamp excused"><div class="stamp-mark">불참</div><h2>사전 불참 신고 완료</h2><p>${esc(ab.reason)}${ab.detail?` · ${esc(ab.detail)}`:''}${ab.at?` · ${prettyTime(ab.at)} 신고`:''}</p></div><button class="btn btn-ghost" id="ab-undo" style="width:100%">신고 취소하고 출석하기</button>`;
   else if(codeOK)action=`<button class="tap" id="st-check">출석하기<small>누르면 바로 기록됩니다</small></button><div class="absent-link"><button id="ab-open">오늘 참여할 수 없어요 (사전 불참 신고)</button></div>`;
-  else if(sessionOpen)action=`<div class="picker"><div class="field"><label for="st-code">화면의 6자리 코드</label><input class="input" id="st-code" maxlength="6" autocapitalize="characters" autocomplete="off" style="font-family:var(--f-data);font-size:22px;letter-spacing:.24em;text-align:center" placeholder="ABC123"></div><button class="btn btn-primary" id="st-code-go" style="width:100%;padding:13px">코드 확인</button><p class="hint" style="text-align:center">QR을 스캔하면 코드는 자동으로 입력됩니다.</p></div><div class="absent-link"><button id="ab-open">오늘 참여할 수 없어요 (사전 불참 신고)</button></div>`;
+  else if(sessionOpen)action=`<div class="notice"><b>QR을 스캔해 주세요.</b><br>${esc(CFG.place||'')}에 있는 QR을 휴대폰 카메라로 비추면 출석 버튼이 나타납니다.</div><div class="absent-link"><button id="ab-open">오늘 참여할 수 없어요 (사전 불참 신고)</button></div>`;
   else action=`<div class="notice">${esc(CFG.place||'')} 화면의 QR을 스캔하면 출석 버튼이 나타납니다.</div><div class="absent-link"><button id="ab-open">오늘 미리 불참 신고하기</button></div>`;
   const dl=daysLabel(me.days);
   stage.innerHTML=`${banner}<div class="me-card"><div class="me-tag">${me.g}학년 ${me.c}반 ${me.n}번</div><div class="me-name">${esc(me.name)}</div><div class="me-sub">${st.open?'오늘의 출석 상태':'오늘의 안내'}</div>${CFG.useSignupDays&&dl?`<div class="me-days">신청 요일 <b>${dl}</b></div>`:''}</div>${action}<div id="st-mystats"></div>`;
   if($('#st-check'))$('#st-check').onclick=doCheckIn;
   if($('#st-checkout'))$('#st-checkout').onclick=doCheckOut;
-  if($('#st-code-go2')){$('#st-code-go2').onclick=()=>{const v=($('#st-code').value||'').trim().toUpperCase();if(!v)return toast('코드를 입력해 주세요.',true);if(!LIVE||LIVE.expired)return toast('지금은 출석 시간이 아닙니다.',true);if(v!==LIVE.code)return toast('코드가 맞지 않습니다.',true);urlCode=v;doCheckOut()};$('#st-code').addEventListener('keydown',e=>{if(e.key==='Enter')$('#st-code-go2').click()})}
   if($('#ab-open'))$('#ab-open').onclick=()=>{absentMode=true;renderStudent()};
   if($('#ab-undo'))$('#ab-undo').onclick=undoAbsent;
-  if($('#st-code-go')){$('#st-code-go').onclick=()=>{const v=($('#st-code').value||'').trim().toUpperCase();if(!v)return toast('코드를 입력해 주세요.',true);if(!LIVE||LIVE.expired)return toast('지금은 출석 시간이 아닙니다.',true);if(v!==LIVE.code)return toast('코드가 맞지 않습니다. 화면을 다시 확인하세요.',true);urlCode=v;renderStudent()};$('#st-code').addEventListener('keydown',e=>{if(e.key==='Enter')$('#st-code-go').click()})}
   renderMyStats();
 }
 function renderPicker(){
@@ -635,22 +635,26 @@ function renderSelfEnroll(){
 }
 async function doCheckIn(){
   const btn=$('#st-check');if(btn)btn.disabled=true;
-  const st=dayStatus(),cur=nowMin(),inWindow=st.open&&cur>=mins(CFG.startTime)&&cur<mins(CFG.endTime);
+  const st=dayStatus(),cur=nowMin(),openAt=mins(CFG.openTime||CFG.startTime),inWindow=st.open&&cur>=openAt&&cur<mins(CFG.endTime);
   const autoOn=CFG.autoOpen&&inWindow;
   await loadLive();
   if(!autoOn){
+    if(!inWindow){toast('지금은 출석 시간이 아닙니다.',true);return renderStudent()}
     if(!LIVE||LIVE.expired){toast('출석 시간이 끝났습니다.',true);return renderStudent()}
     if(urlCode!==LIVE.code){toast('코드가 갱신되었습니다. QR을 다시 스캔해 주세요.',true);return renderStudent()}
   }else if(!inWindow){toast('지금은 운영 시간이 아닙니다.',true);return renderStudent()}
-  const t=hhmm();const ok=await DB.set(`att:${dateKey()}:${ME}:${t}`,1);
+  // 시작 시각(18:00) 이전에 일찍 찍으면 시작 시각으로 보정
+  const startM=mins(CFG.startTime);
+  const t=cur<startM?CFG.startTime.replace(':',''):hhmm();
+  const ok=await DB.set(`att:${dateKey()}:${ME}:${t}`,1);
   if(!ok){toast('저장에 실패했습니다. 다시 눌러 주세요.',true);if(btn)btn.disabled=false;return}
   if(ABSENT[ME])await DB.del(ABSENT[ME].key);
   await renderStudent();
-  toast(isLate(t)?'출석했습니다. 조금 늦었어요.':'출석했습니다.');
+  toast(cur<startM?`출석했습니다. 입실은 ${CFG.startTime}로 기록돼요.`:(isLate(t)?'출석했습니다. 조금 늦었어요.':'출석했습니다.'));
 }
 async function doCheckOut(){
   const btn=$('#st-checkout');if(btn)btn.disabled=true;
-  const st=dayStatus(),cur=nowMin(),inWindow=st.open&&cur>=mins(CFG.startTime)&&cur<mins(CFG.endTime);
+  const st=dayStatus(),cur=nowMin(),openAt=mins(CFG.openTime||CFG.startTime),inWindow=st.open&&cur>=openAt&&cur<mins(CFG.endTime);
   const autoOn=CFG.autoOpen&&inWindow;
   await loadLive();
   if(!autoOn){
@@ -836,10 +840,10 @@ async function renderQR(){
   const el=$('#tab-qr'),st=dayStatus(),warn=needsUrlWarning();
   el.innerHTML=`<div class="p-title"><div><div class="brandline">${esc(CFG.school)} · ${esc(CFG.place)}</div><div class="eyebrow" style="margin-bottom:5px">학생에게 보여줄 화면</div><h2>출석 QR</h2></div><div class="p-actions"><button class="btn btn-primary btn-sm" id="qr-project" ${LIVE&&!LIVE.expired?'':'disabled'}>전체화면으로 띄우기</button></div></div>
     ${!st.open?`<div class="card" style="border-color:rgba(196,70,42,.35);background:var(--alert-tint);margin-bottom:var(--s5)"><div style="font-weight:700;color:var(--alert);margin-bottom:6px">오늘은 운영일이 아닙니다 · ${esc(st.reason)}</div><p class="hint">그래도 출석을 열 수는 있지만, 필요한 경우가 아니라면 운영일에만 여시길 권합니다.</p></div>`:''}
-    ${warn?`<div class="card" style="border-color:rgba(196,70,42,.35);background:var(--alert-tint);margin-bottom:var(--s5)"><div style="font-weight:700;color:var(--alert);margin-bottom:6px">QR 주소를 먼저 설정하세요</div><p class="hint">지금 QR에는 학생 휴대폰이 열 수 없는 주소가 들어갑니다. 이 파일을 학교 홈페이지나 무료 호스팅(넷리파이, 깃허브 페이지 등)에 올린 뒤, <b>설정 → 배포 주소</b>에 그 주소를 넣어 주세요. 그전까지는 학생이 6자리 코드를 직접 입력해도 출석됩니다.</p></div>`:''}
+    ${warn?`<div class="card" style="border-color:rgba(196,70,42,.35);background:var(--alert-tint);margin-bottom:var(--s5)"><div style="font-weight:700;color:var(--alert);margin-bottom:6px">QR 주소를 먼저 설정하세요</div><p class="hint">지금 QR에는 학생 휴대폰이 열 수 없는 주소가 들어갑니다. 이 파일을 학교 홈페이지나 무료 호스팅(넷리파이, 깃허브 페이지 등)에 올린 뒤, <b>설정 → 배포 주소</b>에 그 주소를 넣어 주세요.</p></div>`:''}
     <div class="qr-layout"><div class="qr-stage">${LIVE&&!LIVE.expired?`<div class="brandline">${esc(CFG.school)} · ${esc(CFG.place)}</div><div class="eyebrow" style="margin-top:-10px">자기주도학습 진행 중 · ${CFG.startTime}~${CFG.endTime}</div><div class="qr-frame"><div id="qr-box"></div></div><div class="qr-code">${LIVE.code}</div><div class="qr-meta">이 QR과 코드는 <b>출석을 닫을 때까지 고정</b>됩니다. 화면을 한 번만 띄워 두시면 됩니다.</div>`:`<div class="empty" style="padding:var(--s7) 0"><b>아직 출석을 열지 않았습니다</b>오른쪽 버튼으로 출석을 시작하세요.</div>`}</div>
       <aside><div class="side-block"><h3>출석</h3><div class="pbtns"><button class="pbtn ${LIVE&&!LIVE.expired?'on':''}" id="qr-open"><span class="t">자기주도학습 출석 열기<i>${CFG.startTime} 시작 · ${sessionMinutes()}분 인정</i></span><span class="s">${LIVE&&!LIVE.expired?'진행 중':'열기'}</span></button><button class="btn btn-danger" id="qr-close" ${LIVE&&!LIVE.expired?'':'disabled'} style="margin-top:var(--s2)">출석 닫기</button></div><div class="sup-now">오늘 감독 · ${SUP?esc(SUP):'미배정 (감독 배정 탭에서 지정)'}</div></div>
-      <div class="side-block"><h3>안내</h3><p class="hint">학생은 휴대폰 카메라로 QR을 비추기만 하면 됩니다. 처음 한 번만 이름을 고르면, 다음부터는 스캔 후 버튼 한 번으로 끝납니다.<br><br>QR과 6자리 코드는 <b>출석을 닫을 때까지 그대로 유지</b>됩니다. 아침에 한 번 띄워 두면 종일 새로고침할 필요가 없습니다.</p></div></aside></div>`;
+      <div class="side-block"><h3>안내</h3><p class="hint">학생은 휴대폰 카메라로 QR을 비추기만 하면 됩니다. 처음 한 번만 이름을 고르고 PIN을 정하면, 다음부터는 스캔 후 버튼 한 번으로 끝납니다.<br><br>운영 시간이 되면 자동으로 출석을 받으므로, QR(또는 링크)만 자습실에 붙여 두면 됩니다.</p></div></aside></div>`;
   if($('#qr-open'))$('#qr-open').onclick=openSession;
   if($('#qr-close'))$('#qr-close').onclick=closeSession;
   if($('#qr-project'))$('#qr-project').onclick=openProjector;
@@ -1001,7 +1005,7 @@ function renderSettings(){
   const el=$('#tab-settings'),dayChips=[['월',1],['화',2],['수',3],['목',4],['금',5]];
   el.innerHTML=`<div class="p-title"><div><div class="brandline">${esc(CFG.school)} · ${esc(CFG.place)}</div><div class="eyebrow" style="margin-bottom:5px">운영 방식</div><h2>설정</h2></div></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">기본</h3><div class="form-grid"><div class="field"><label for="cf-school">학교 이름</label><input class="input" id="cf-school" value="${esc(CFG.school)}"></div><div class="field"><label for="cf-place">장소</label><input class="input" id="cf-place" value="${esc(CFG.place)}"></div><div class="field" style="grid-column:1/-1"><label for="cf-url">배포 주소 (QR에 담길 주소)</label><input class="input" id="cf-url" placeholder="https://pungsan-sdl.netlify.app/" value="${esc(CFG.baseUrl)}"><p class="hint">이 파일을 올린 웹 주소를 넣어 주세요. 비워두면 지금 열려 있는 주소가 쓰이는데, 학생 휴대폰에서는 열리지 않을 수 있습니다.</p></div></div></div>
-    <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">시간</h3><div class="form-grid"><div class="field"><label for="cf-start">시작 시각</label><input class="input" id="cf-start" type="time" value="${CFG.startTime}"></div><div class="field"><label for="cf-end">종료 시각</label><input class="input" id="cf-end" type="time" value="${CFG.endTime}"></div><div class="field"><label for="cf-late">지각 기준 (시작 후 몇 분)</label><input class="input" id="cf-late" type="number" min="0" max="120" value="${CFG.lateAfter}"></div></div></div>
+    <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">시간</h3><div class="form-grid"><div class="field"><label for="cf-open">출석 열림 시각</label><input class="input" id="cf-open" type="time" value="${CFG.openTime||CFG.startTime}"><p class="hint">이 시각부터 출석을 받습니다. 일찍 온 학생도 체크할 수 있어요.</p></div><div class="field"><label for="cf-start">인정 시작 시각</label><input class="input" id="cf-start" type="time" value="${CFG.startTime}"><p class="hint">이 시각 이전에 찍으면 입실 시각이 <b>이 시각</b>으로 기록됩니다.</p></div><div class="field"><label for="cf-end">종료 시각</label><input class="input" id="cf-end" type="time" value="${CFG.endTime}"></div><div class="field"><label for="cf-late">지각 기준 (시작 후 몇 분)</label><input class="input" id="cf-late" type="number" min="0" max="120" value="${CFG.lateAfter}"></div></div></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">운영 기간 · 요일</h3><div class="form-grid"><div class="field"><label for="cf-sd">운영 시작일</label><input class="input" id="cf-sd" type="date" value="${CFG.startDate}"></div><div class="field"><label for="cf-ed">운영 종료일</label><input class="input" id="cf-ed" type="date" value="${CFG.endDate}"></div></div><div class="field" style="margin-top:var(--s4)"><label>운영 요일</label><div style="display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:2px">${dayChips.map(([l,v])=>`<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--r-sm);border:1px solid var(--line-strong);background:var(--paper-1);font-size:13.5px;font-weight:600;cursor:pointer"><input type="checkbox" class="cf-day" value="${v}" ${(CFG.opDays||[]).includes(v)?'checked':''}> ${l}</label>`).join('')}</div></div></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s2)">운영시간 자동 출석</h3><div class="toggle-row"><div><div style="font-weight:600;font-size:14px">운영시간이면 자동으로 출석 받기</div><p class="hint" style="margin-top:2px">켜면 선생님이 QR을 열지 않아도, <b>운영일의 ${CFG.startTime}~${CFG.endTime}</b>에는 학생이 접속만 하면 바로 출석·퇴실할 수 있습니다. 고정 QR(또는 링크)을 자습실에 붙여두세요. 끄면 예전처럼 선생님이 직접 QR을 열어야 합니다.</p></div><label class="switch"><input type="checkbox" id="cf-autoopen" ${CFG.autoOpen?'checked':''}><span class="track"></span></label></div></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s2)">신청 요일 관리</h3><div class="toggle-row"><div><div style="font-weight:600;font-size:14px">학생별 신청 요일로 관리</div><p class="hint" style="margin-top:2px">켜면 명렬표에 요일 칸이 생기고, 참여율을 <b>신청한 날 기준</b>으로 계산합니다. 신청서 받은 뒤 켜세요.</p></div><label class="switch"><input type="checkbox" id="cf-usedays" ${CFG.useSignupDays?'checked':''}><span class="track"></span></label></div></div>
@@ -1012,7 +1016,7 @@ function renderSettings(){
     <div class="card" style="margin-top:var(--s5);border-color:rgba(196,70,42,.3);background:var(--alert-tint)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s2);color:var(--alert)">출석 기록 전체 초기화</h3><p class="hint" style="margin-bottom:var(--s3)">지금까지 쌓인 <b>모든 날짜의 출석·퇴실·사전불참 기록</b>을 삭제합니다. 시험 삼아 눌러본 참여일·누적시간이 전부 0으로 돌아갑니다. <b>명단·감독 배정·서명·설정은 그대로 유지</b>됩니다. 되돌릴 수 없으니, 필요하면 먼저 위에서 백업하세요.</p><button class="btn btn-danger" id="cf-reset">출석 기록 전체 초기화</button></div>`;
   $('#ex-add').onclick=async()=>{const from=$('#ex-from').value;if(!from)return toast('시작일을 골라 주세요.',true);const to=$('#ex-to').value||'',reason=$('#ex-reason').value.trim()||'제외일';CFG.exclusions=[...(CFG.exclusions||[]),{from,...(to&&to!==from?{to}:{}),reason}].sort((a,b)=>a.from.localeCompare(b.from));EXCL=expandExclusions(CFG.exclusions);await DB.set('config',CFG);toast('제외일을 추가했습니다.');renderSettings()};
   $$('[data-ex-del]').forEach(b=>b.onclick=async()=>{CFG.exclusions=(CFG.exclusions||[]).filter((_,i)=>i!==Number(b.dataset.exDel));EXCL=expandExclusions(CFG.exclusions);await DB.set('config',CFG);toast('제외일을 삭제했습니다.');renderSettings()});
-  $('#cf-save').onclick=async()=>{const pin=$('#cf-pin').value.trim();if(pin&&!/^\d{4,6}$/.test(pin))return toast('PIN은 숫자 4~6자리로 넣어 주세요.',true);const days=$$('.cf-day:checked').map(c=>Number(c.value)).sort();const start=$('#cf-start').value||'18:00',end=$('#cf-end').value||'21:00';CFG={...CFG,school:$('#cf-school').value.trim()||'풍산고등학교',place:$('#cf-place').value.trim()||'4층 지혜의 숲',baseUrl:$('#cf-url').value.trim(),startTime:start,endTime:end,sessionMin:Math.max(0,mins(end)-mins(start)),lateAfter:Number($('#cf-late').value)||0,startDate:$('#cf-sd').value||CFG.startDate,endDate:$('#cf-ed').value||CFG.endDate,opDays:days.length?days:[1,2,3,4],useSignupDays:$('#cf-usedays').checked,autoOpen:$('#cf-autoopen').checked};if(pin)CFG.pin=hashPin(pin);const ok=await DB.set('config',CFG);EXCL=expandExclusions(CFG.exclusions);applyBrand();updateConnBadge();if(!DB.isRemote)toast('이 기기에만 저장됨 — 온라인 연결이 안 됩니다.',true);else if(pin)toast('저장했습니다. 새 PIN이 모든 기기에 적용됩니다.');else toast('저장했습니다.');renderSettings()};
+  $('#cf-save').onclick=async()=>{const pin=$('#cf-pin').value.trim();if(pin&&!/^\d{4,6}$/.test(pin))return toast('PIN은 숫자 4~6자리로 넣어 주세요.',true);const days=$$('.cf-day:checked').map(c=>Number(c.value)).sort();const start=$('#cf-start').value||'18:00',end=$('#cf-end').value||'21:00';CFG={...CFG,school:$('#cf-school').value.trim()||'풍산고등학교',place:$('#cf-place').value.trim()||'4층 지혜의 숲',baseUrl:$('#cf-url').value.trim(),startTime:start,endTime:end,openTime:$('#cf-open').value||start,sessionMin:Math.max(0,mins(end)-mins(start)),lateAfter:Number($('#cf-late').value)||0,startDate:$('#cf-sd').value||CFG.startDate,endDate:$('#cf-ed').value||CFG.endDate,opDays:days.length?days:[1,2,3,4],useSignupDays:$('#cf-usedays').checked,autoOpen:$('#cf-autoopen').checked};if(pin)CFG.pin=hashPin(pin);const ok=await DB.set('config',CFG);EXCL=expandExclusions(CFG.exclusions);applyBrand();updateConnBadge();if(!DB.isRemote)toast('이 기기에만 저장됨 — 온라인 연결이 안 됩니다.',true);else if(pin)toast('저장했습니다. 새 PIN이 모든 기기에 적용됩니다.');else toast('저장했습니다.');renderSettings()};
   $('#cf-backup').onclick=backupAll;
   if($('#cf-reset'))$('#cf-reset').onclick=resetAllAttendance;
 }
