@@ -356,7 +356,7 @@ td.num,th.num{text-align:right;font-family:var(--f-data)}
   <div class="qr-frame"><div id="pj-qr"></div></div>
   <div class="qr-code" id="pj-code">——————</div>
   <div class="pj-sup hidden" id="pj-sup"></div>
-  <div class="pj-sub">휴대폰 카메라로 QR을 비추면 출석 화면이 열립니다. &nbsp;·&nbsp; 코드는 <b id="pj-ttl">5</b>분마다 바뀝니다.</div>
+  <div class="pj-sub">휴대폰 카메라로 QR을 비추면 출석 화면이 열립니다. &nbsp;·&nbsp; 이 QR은 출석을 닫을 때까지 고정됩니다.</div>
 </div>
 <div id="toast"></div>
 <script>
@@ -694,8 +694,13 @@ async function toggleSeatOn(id){
   if(busySeat)return;busySeat=true;
   try{
     const s=findStudent(id);if(!s)return;const r=TODAY[id];
-    if(r){if(!confirm(`${s.name} 학생의 출석을 지울까요?`)){return}await DB.del(r.key);if(r.outKey)await DB.del(r.outKey);toast(`${s.name} 출석을 지웠습니다.`)}
-    else{if(ABSENT[id])await DB.del(ABSENT[id].key);await DB.set(`att:${viewDate}:${id}:${hhmm(new Date())}`,1);toast(`${s.name} 출석 처리했습니다.`)}
+    if(r){
+      if(!confirm(`${s.name} 학생의 출석을 지울까요?`))return;
+      if(!DB.isRemote){toast('온라인 연결이 안 된 상태에서는 삭제가 반영되지 않습니다. 연결(주황 배지) 확인 후 다시 시도하세요.',true);return}
+      await DB.del(r.key);if(r.outKey)await DB.del(r.outKey);
+      toast(`${s.name} 출석을 지웠습니다.`)
+    }
+    else{if(!DB.isRemote){toast('온라인 연결이 안 된 상태입니다. 연결 확인 후 다시 시도하세요.',true);return}if(ABSENT[id])await DB.del(ABSENT[id].key);await DB.set(`att:${viewDate}:${id}:${hhmm(new Date())}`,1);toast(`${s.name} 출석 처리했습니다.`)}
     await loadToday(viewDate);
   }finally{busySeat=false}
   renderToday();
@@ -938,11 +943,13 @@ function renderSettings(){
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s3)">제외일</h3><p class="hint" style="margin-bottom:var(--s3)">이 날짜에는 자동으로 미운영으로 표시되고, 통계 분모(운영일)에서도 빠집니다.</p><div class="excl-list">${(CFG.exclusions||[]).map((e,i)=>`<div class="excl-item"><span class="d">${e.from}${e.to&&e.to!==e.from?` ~ ${e.to}`:''}</span><span class="r">${esc(e.reason||'제외일')}</span><button class="btn btn-ghost btn-sm" data-ex-del="${i}">삭제</button></div>`).join('')||'<p class="hint">등록된 제외일이 없습니다.</p>'}</div><div class="form-grid" style="margin-top:var(--s4)"><div class="field"><label for="ex-from">시작일</label><input class="input" id="ex-from" type="date"></div><div class="field"><label for="ex-to">종료일 (하루면 비워두기)</label><input class="input" id="ex-to" type="date"></div><div class="field"><label for="ex-reason">사유</label><input class="input" id="ex-reason" placeholder="예: 전국연합평가"></div></div><button class="btn btn-ghost" id="ex-add" style="margin-top:var(--s3)">제외일 추가</button></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">교사용 PIN</h3><div class="form-grid"><div class="field"><label for="cf-pin">새 PIN (4~6자리)</label><input class="input" id="cf-pin" type="password" inputmode="numeric" maxlength="6" placeholder="바꾸지 않으려면 비워두세요" autocomplete="new-password"></div></div></div>
     <div style="display:flex;gap:var(--s2);flex-wrap:wrap"><button class="btn btn-primary" id="cf-save">저장</button><button class="btn btn-ghost" id="cf-backup">전체 기록 백업 (CSV)</button></div>
-    <p class="hint" style="margin-top:var(--s5);max-width:640px">기록은 이 앱의 저장소에 쌓입니다. 학기가 끝날 때, 혹은 한 달에 한 번은 <b>전체 기록 백업</b>을 눌러 엑셀 파일로 따로 보관해 두시길 권합니다.</p>`;
+    <p class="hint" style="margin-top:var(--s5);max-width:640px">기록은 이 앱의 저장소에 쌓입니다. 학기가 끝날 때, 혹은 한 달에 한 번은 <b>전체 기록 백업</b>을 눌러 엑셀 파일로 따로 보관해 두시길 권합니다.</p>
+    <div class="card" style="margin-top:var(--s5);border-color:rgba(196,70,42,.3);background:var(--alert-tint)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s2);color:var(--alert)">출석 기록 전체 초기화</h3><p class="hint" style="margin-bottom:var(--s3)">지금까지 쌓인 <b>모든 날짜의 출석·퇴실·사전불참 기록</b>을 삭제합니다. 시험 삼아 눌러본 참여일·누적시간이 전부 0으로 돌아갑니다. <b>명단·감독 배정·서명·설정은 그대로 유지</b>됩니다. 되돌릴 수 없으니, 필요하면 먼저 위에서 백업하세요.</p><button class="btn btn-danger" id="cf-reset">출석 기록 전체 초기화</button></div>`;
   $('#ex-add').onclick=async()=>{const from=$('#ex-from').value;if(!from)return toast('시작일을 골라 주세요.',true);const to=$('#ex-to').value||'',reason=$('#ex-reason').value.trim()||'제외일';CFG.exclusions=[...(CFG.exclusions||[]),{from,...(to&&to!==from?{to}:{}),reason}].sort((a,b)=>a.from.localeCompare(b.from));EXCL=expandExclusions(CFG.exclusions);await DB.set('config',CFG);toast('제외일을 추가했습니다.');renderSettings()};
   $$('[data-ex-del]').forEach(b=>b.onclick=async()=>{CFG.exclusions=(CFG.exclusions||[]).filter((_,i)=>i!==Number(b.dataset.exDel));EXCL=expandExclusions(CFG.exclusions);await DB.set('config',CFG);toast('제외일을 삭제했습니다.');renderSettings()});
   $('#cf-save').onclick=async()=>{const pin=$('#cf-pin').value.trim();if(pin&&!/^\d{4,6}$/.test(pin))return toast('PIN은 숫자 4~6자리로 넣어 주세요.',true);const days=$$('.cf-day:checked').map(c=>Number(c.value)).sort();const start=$('#cf-start').value||'18:00',end=$('#cf-end').value||'21:00';CFG={...CFG,school:$('#cf-school').value.trim()||'풍산고등학교',place:$('#cf-place').value.trim()||'4층 지혜의 숲',baseUrl:$('#cf-url').value.trim(),startTime:start,endTime:end,sessionMin:Math.max(0,mins(end)-mins(start)),lateAfter:Number($('#cf-late').value)||0,startDate:$('#cf-sd').value||CFG.startDate,endDate:$('#cf-ed').value||CFG.endDate,opDays:days.length?days:[1,2,3,4],useSignupDays:$('#cf-usedays').checked};if(pin)CFG.pin=hashPin(pin);const ok=await DB.set('config',CFG);EXCL=expandExclusions(CFG.exclusions);applyBrand();updateConnBadge();if(!DB.isRemote)toast('이 기기에만 저장됨 — 온라인 연결이 안 됩니다.',true);else if(pin)toast('저장했습니다. 새 PIN이 모든 기기에 적용됩니다.');else toast('저장했습니다.');renderSettings()};
   $('#cf-backup').onclick=backupAll;
+  if($('#cf-reset'))$('#cf-reset').onclick=resetAllAttendance;
 }
 function makeHakbun(s){return `${s.g}${pad(s.c)}${pad(s.n)}`}
 let _exceljsLoading=null;
@@ -1070,6 +1077,21 @@ async function exportMonthGridCSV(){
   const roster=applyGrade(ROSTER);const rows=[[`${mk.slice(0,4)}학년도 2학기 자기주도학습 출석부 (${Number(mk.slice(5,7))}월) · ${CFG.place}`]];rows.push([]);
   Object.keys(weeks).sort().forEach((wk,wi)=>{const wd=weeks[wk];const targets=roster.filter(s=>wd.some(dk=>isSignupDay(s,new Date(dk+'T00:00:00'))));const w0=new Date(wd[0]+'T00:00:00'),wN=new Date(wd[wd.length-1]+'T00:00:00');rows.push([`◆ ${wi+1}주차 (${w0.getMonth()+1}/${w0.getDate()}~${wN.getMonth()+1}/${wN.getDate()})`]);rows.push(['연번','학번','성명',...wd.map(dk=>DOW[new Date(dk+'T00:00:00').getDay()]),'비고']);rows.push(['','','실시일',...wd.map(dk=>dk.slice(5)),'']);let idx=0;targets.forEach(s=>{idx++;rows.push([idx,makeHakbun(s),s.name,...wd.map(dk=>attMark(attByDate[dk][s.id],abByDate[dk][s.id])),daysLabel(s.days)||'전요일'])});rows.push(['','','재적',...wd.map(()=>targets.length),'']);rows.push(['','','참가',...wd.map(dk=>targets.filter(s=>attByDate[dk][s.id]).length),'']);rows.push(['','','감독',...wd.map(dk=>supByDate[dk]),'']);rows.push(['','','서명',...wd.map(dk=>signByDate[dk]?`(서명) ${signByDate[dk]}`:''),'']);rows.push([])});
   downloadCSV(rows,`풍산고_자기주도학습_출석부_${mk}.csv`);toast('CSV로 내려받았습니다.');
+}
+async function resetAllAttendance(){
+  if(!confirm('지금까지 쌓인 모든 출석·퇴실·사전불참 기록을 삭제합니다.\n(참여일·누적시간이 전부 0으로 초기화됩니다)\n명단·감독·서명·설정은 그대로 유지됩니다.\n계속할까요?'))return;
+  const phrase=prompt('되돌릴 수 없습니다. 정말 초기화하려면 아래에 "초기화"라고 입력하세요.');
+  if(phrase===null)return;
+  if(phrase.trim()!=='초기화')return toast('초기화를 취소했습니다. (입력이 일치하지 않음)',true);
+  toast('출석 기록을 삭제하는 중입니다…');
+  const [attAll,outAll,abAll]=await Promise.all([DB.list('att:'),DB.list('out:'),DB.list('ab:')]);
+  let n=0;
+  for(const k of attAll){await DB.del(k);n++}
+  for(const k of outAll){await DB.del(k)}
+  for(const k of abAll){await DB.del(k)}
+  TODAY={};ABSENT={};
+  toast(`출석 기록을 모두 초기화했습니다. (${n}건 삭제)`);
+  renderSettings();
 }
 async function backupAll(){
   toast('기록을 모으는 중입니다…');
