@@ -317,7 +317,7 @@ td.num,th.num{text-align:right;font-family:var(--f-data)}
         <button class="btn btn-ghost" id="lock-back" style="flex:none">뒤로</button>
         <button class="btn btn-primary" id="pin-go" style="flex:1">들어가기</button>
       </div>
-      <p style="margin-top:var(--s4);margin-bottom:0">처음이라면 PIN은 <b style="color:var(--lamp-ink);font-family:var(--f-data)">1234</b> 입니다.</p>
+      <p style="margin-top:var(--s4);margin-bottom:0">운영 관련은 <b style="color:var(--lamp-ink)">이정원(925)</b>에게 문의주세요 :)</p>
     </div>
   </div>
   <div id="t-app" class="hidden" style="display:flex;flex-direction:column;min-height:100dvh">
@@ -427,6 +427,7 @@ const prettyTime=t=>`${t.slice(0,2)}:${t.slice(2)}`;
 const DOW=['일','월','화','수','목','금','토'];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m};
+const nowMin=(d=new Date())=>d.getHours()*60+d.getMinutes();
 let toastTimer;
 function toast(msg,warn=false){const el=$('#toast');el.textContent=msg;el.classList.toggle('warn',warn);el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2600)}
 function makeCode(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:6},()=>A[Math.floor(Math.random()*A.length)]).join('')}
@@ -443,6 +444,7 @@ const DEFAULTS={
   school:'풍산고등학교', place:'4층 지혜의 숲', pin:hashPin('1234'), baseUrl:'',
   startTime:'18:00', endTime:'21:00', sessionMin:180, lateAfter:15, ttlMin:5,
   startDate:'2026-08-31', endDate:'2026-12-03', opDays:[1,2,3,4], useSignupDays:false,
+  autoOpen:true,
   supSeeded:false,
   exclusions:[
     {from:'2026-09-02',reason:'전국연합평가'},
@@ -507,7 +509,9 @@ async function renderStudent(){
   if(!ME||!findStudent(ME)){renderPicker();return}
   $('#st-change').classList.remove('hidden');
   const me=findStudent(ME),rec=TODAY[ME],ab=ABSENT[ME],st=dayStatus(),signup=isSignupDay(me);
-  const sessionOpen=LIVE&&!LIVE.expired,codeOK=sessionOpen&&urlCode&&urlCode===LIVE.code;
+  const cur=nowMin(),inWindow=st.open&&cur>=mins(CFG.startTime)&&cur<mins(CFG.endTime);
+  const autoOn=CFG.autoOpen&&inWindow;
+  const sessionOpen=autoOn||(LIVE&&!LIVE.expired),codeOK=autoOn||(sessionOpen&&urlCode&&LIVE&&urlCode===LIVE.code);
   if(absentMode&&st.open&&!rec){
     stage.innerHTML=`
       <div class="me-card"><div class="me-tag">${me.g}학년 ${me.c}반 ${me.n}번</div><div class="me-name">${esc(me.name)}</div><div class="me-sub">오늘 참여할 수 없나요?</div></div>
@@ -522,7 +526,7 @@ async function renderStudent(){
   if(!st.open)banner=`<div class="period-banner off"><i class="pulse"></i><p>오늘은 자기주도학습 <b>운영일이 아닙니다</b>${st.reason?` · ${esc(st.reason)}`:''}.</p></div>`;
   else if(!signup)banner=`<div class="period-banner off"><i class="pulse"></i><p>오늘(${DOW[new Date().getDay()]})은 <b>신청한 요일이 아닙니다</b>. 참여를 원하면 출석해도 됩니다.</p></div>`;
   else if(ab&&!rec)banner=`<div class="period-banner excused"><i class="pulse"></i><p><b>사전 불참</b>으로 신고되어 있습니다 · ${esc(ab.reason)}</p></div>`;
-  else if(!sessionOpen)banner=`<div class="period-banner"><i class="pulse"></i><p>지금은 출석을 받고 있지 않습니다. <b>선생님이 QR을 띄우면</b> 열립니다.</p></div>`;
+  else if(!sessionOpen){const before=st.open&&nowMin()<mins(CFG.startTime);banner=`<div class="period-banner"><i class="pulse"></i><p>${before?`출석은 <b>${CFG.startTime}부터</b> 받습니다. 조금만 기다려 주세요.`:`지금은 출석을 받고 있지 않습니다. ${CFG.autoOpen?'운영 시간에 다시 열립니다.':'<b>선생님이 QR을 띄우면</b> 열립니다.'}`}</p></div>`}
   else banner=`<div class="period-banner live"><i class="pulse"></i><p><b>자기주도학습</b> 출석을 받는 중입니다 (${CFG.startTime}~${CFG.endTime}).</p></div>`;
   let action='';
   if(!st.open)action=`<div class="notice">${esc(CFG.place||'')}<br>다음 운영일에 다시 만나요.</div>`;
@@ -586,9 +590,13 @@ function renderSelfEnroll(){
 }
 async function doCheckIn(){
   const btn=$('#st-check');if(btn)btn.disabled=true;
+  const st=dayStatus(),cur=nowMin(),inWindow=st.open&&cur>=mins(CFG.startTime)&&cur<mins(CFG.endTime);
+  const autoOn=CFG.autoOpen&&inWindow;
   await loadLive();
-  if(!LIVE||LIVE.expired){toast('출석 시간이 끝났습니다.',true);return renderStudent()}
-  if(urlCode!==LIVE.code){toast('코드가 갱신되었습니다. QR을 다시 스캔해 주세요.',true);return renderStudent()}
+  if(!autoOn){
+    if(!LIVE||LIVE.expired){toast('출석 시간이 끝났습니다.',true);return renderStudent()}
+    if(urlCode!==LIVE.code){toast('코드가 갱신되었습니다. QR을 다시 스캔해 주세요.',true);return renderStudent()}
+  }else if(!inWindow){toast('지금은 운영 시간이 아닙니다.',true);return renderStudent()}
   const t=hhmm();const ok=await DB.set(`att:${dateKey()}:${ME}:${t}`,1);
   if(!ok){toast('저장에 실패했습니다. 다시 눌러 주세요.',true);if(btn)btn.disabled=false;return}
   if(ABSENT[ME])await DB.del(ABSENT[ME].key);
@@ -597,9 +605,13 @@ async function doCheckIn(){
 }
 async function doCheckOut(){
   const btn=$('#st-checkout');if(btn)btn.disabled=true;
+  const st=dayStatus(),cur=nowMin(),inWindow=st.open&&cur>=mins(CFG.startTime)&&cur<mins(CFG.endTime);
+  const autoOn=CFG.autoOpen&&inWindow;
   await loadLive();
-  if(!LIVE||LIVE.expired){toast('지금은 퇴실을 받고 있지 않습니다.',true);return renderStudent()}
-  if(urlCode!==LIVE.code){toast('코드가 갱신되었습니다. QR을 다시 스캔해 주세요.',true);return renderStudent()}
+  if(!autoOn){
+    if(!LIVE||LIVE.expired){toast('지금은 퇴실을 받고 있지 않습니다.',true);return renderStudent()}
+    if(urlCode!==LIVE.code){toast('코드가 갱신되었습니다. QR을 다시 스캔해 주세요.',true);return renderStudent()}
+  }
   await loadToday();
   const rec=TODAY[ME];
   if(!rec){toast('입실 기록이 없습니다. 먼저 입실해 주세요.',true);return renderStudent()}
@@ -616,12 +628,15 @@ async function reportAbsent(reason){const st=dayStatus();if(!st.open){toast('오
 async function undoAbsent(){const ab=ABSENT[ME];if(ab)await DB.del(ab.key);await renderStudent();toast('불참 신고를 취소했습니다.')}
 async function renderMyStats(){
   const box=$('#st-mystats');if(!box)return;
-  const me=findStudent(ME);const keys=await DB.list('att:');const days=new Set();
-  for(const k of keys){const p=k.split(':');if(p[2]===ME)days.add(p[1])}
-  const myMonth=[...days].filter(d=>d.startsWith(monthKey())).length;
+  const me=findStudent(ME);
+  const [attKeys,outKeys]=await Promise.all([DB.list('att:'+monthKey()),DB.list('out:'+monthKey())]);
+  const outMap={};for(const k of outKeys){const p=k.split(':');if(p.length<4)continue;if(p[2]===ME)outMap[p[1]]=p[3]}
+  const days=new Set();let myMin=0;
+  for(const k of attKeys){const p=k.split(':');if(p.length<4||p[2]!==ME)continue;days.add(p[1]);const out=outMap[p[1]];if(out)myMin+=studyMinutes({t:p[3],out})||0}
+  const myMonth=days.size;
   const opMonth=operatingDates().filter(d=>d.startsWith(monthKey())&&isSignupDay(me,new Date(d+'T00:00:00'))).length;
   const rate=opMonth?Math.round(myMonth/opMonth*100):0;
-  box.innerHTML=`<div class="eyebrow" style="margin:var(--s5) 0 var(--s3);text-align:center">이번 달 나의 기록</div><div class="mystats"><div class="mystat"><div class="n">${myMonth}<i>일</i></div><div class="k">참여한 날</div></div><div class="mystat"><div class="n">${fmtHours(myMonth*sessionMinutes())}<i>시간</i></div><div class="k">누적 시간</div></div><div class="mystat"><div class="n">${rate}<i>%</i></div><div class="k">참여율</div></div></div>`;
+  box.innerHTML=`<div class="eyebrow" style="margin:var(--s5) 0 var(--s3);text-align:center">이번 달 나의 기록</div><div class="mystats"><div class="mystat"><div class="n">${myMonth}<i>일</i></div><div class="k">참여한 날</div></div><div class="mystat"><div class="n">${fmtHours(myMin)}<i>시간</i></div><div class="k">공부 시간</div></div><div class="mystat"><div class="n">${rate}<i>%</i></div><div class="k">참여율</div></div></div>`;
 }
 
 function updateConnBadge(){
@@ -828,24 +843,27 @@ async function renderStats(){
   const el=$('#tab-stats');el.innerHTML=`<div class="empty"><b>기록을 모으는 중</b>잠시만 기다려 주세요.</div>`;
   const now=new Date(),back=statRange==='month'?0:(statRange==='3m'?2:11),months=[];
   for(let i=0;i<=back;i++)months.push(monthKey(new Date(now.getFullYear(),now.getMonth()-i,1)));
-  const all=[],abAll=[];
-  for(const m of months){all.push(...await DB.list('att:'+m));abAll.push(...await DB.list('ab:'+m))}
+  const all=[],outAll=[],abAll=[];
+  for(const m of months){all.push(...await DB.list('att:'+m));outAll.push(...await DB.list('out:'+m));abAll.push(...await DB.list('ab:'+m))}
+  // 퇴실 맵: date::id -> 퇴실시각
+  const outMap={};
+  for(const k of outAll){const p=k.split(':');if(p.length<4)continue;outMap[`${p[1]}::${p[2]}`]=p[3]}
   const byDate={},byStudent={};
-  for(const k of all){const p=k.split(':');if(p.length<4)continue;const[,date,id,t]=p;(byDate[date]||=new Set()).add(id);const s=(byStudent[id]||={days:new Set(),late:0,excused:0});s.days.add(date);if(isLate(t))s.late++}
-  for(const k of abAll){const p=k.split(':');if(p.length<3)continue;const s=(byStudent[p[2]]||={days:new Set(),late:0,excused:0});s.excused++}
+  for(const k of all){const p=k.split(':');if(p.length<4)continue;const[,date,id,t]=p;(byDate[date]||=new Set()).add(id);const s=(byStudent[id]||={days:new Set(),late:0,excused:0,min:0,noOut:0});s.days.add(date);if(isLate(t))s.late++;const out=outMap[`${date}::${id}`];if(out){const sm=studyMinutes({t,out});s.min+=(sm||0)}else{s.noOut++}}
+  for(const k of abAll){const p=k.split(':');if(p.length<3)continue;const s=(byStudent[p[2]]||={days:new Set(),late:0,excused:0,min:0,noOut:0});s.excused++}
   const rangeStart=statRange==='month'?monthKey()+'-01':months[months.length-1]+'-01';
-  const opDatesAll=operatingDates().filter(d=>d>=rangeStart);const smin=sessionMinutes();
-  const rows=applyGrade(ROSTER).map(s=>{const r=byStudent[s.id]||{days:new Set(),late:0,excused:0};const opForMe=opDatesAll.filter(dk=>isSignupDay(s,new Date(dk+'T00:00:00'))).length;return {...s,days:r.days.size,late:r.late,excused:r.excused,min:r.days.size*smin,opMine:opForMe,rate:opForMe?Math.round(r.days.size/opForMe*100):0}}).sort((a,b)=>b.days-a.days||a.name.localeCompare(b.name,'ko'));
+  const opDatesAll=operatingDates().filter(d=>d>=rangeStart);
+  const rows=applyGrade(ROSTER).map(s=>{const r=byStudent[s.id]||{days:new Set(),late:0,excused:0,min:0,noOut:0};const opForMe=opDatesAll.filter(dk=>isSignupDay(s,new Date(dk+'T00:00:00'))).length;return {...s,days:r.days.size,late:r.late,excused:r.excused,min:r.min||0,noOut:r.noOut||0,opMine:opForMe,rate:opForMe?Math.round(r.days.size/opForMe*100):0}}).sort((a,b)=>b.min-a.min||b.days-a.days||a.name.localeCompare(b.name,'ko'));
   const opDays=opDatesAll.length,totalCheck=rows.reduce((a,r)=>a+r.days,0),avg=opDays?Math.round(totalCheck/opDays*10)/10:0;
   const chartDates=opDatesAll.slice(-40),max=Math.max(1,...chartDates.map(d=>(byDate[d]?byDate[d].size:0)));
   el.innerHTML=`<div class="p-title"><div><div class="brandline">${esc(CFG.school)} · ${esc(CFG.place)}</div><div class="eyebrow" style="margin-bottom:5px">${statRange==='month'?'이번 달':statRange==='3m'?'최근 3개월':'최근 1년'} · 운영 ${CFG.startDate}~${CFG.endDate}${CFG.useSignupDays?' · 신청요일 반영':''}</div><h2>참여 통계</h2></div>
     <div class="p-actions"><div style="display:flex;gap:2px;padding:3px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm)" id="stat-grades"></div><div style="display:flex;gap:2px;padding:3px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm)"><button data-r="month" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='month'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">이번 달</button><button data-r="3m" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='3m'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">3개월</button><button data-r="12m" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='12m'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">1년</button></div><button class="btn btn-sm" id="stat-csv">엑셀로 내려받기</button><button class="btn btn-primary btn-sm" id="stat-grid-csv">이번 달 출석부(엑셀) 내려받기</button></div></div>
     <div class="stat-row"><div class="stat-box"><div class="k">운영일</div><div class="n">${opDays}<i>일</i></div></div><div class="stat-box"><div class="k">하루 평균 참여</div><div class="n">${avg}<i>명</i></div></div><div class="stat-box"><div class="k">누적 참여시간</div><div class="n">${Math.round(rows.reduce((a,r)=>a+r.min,0)/60)}<i>시간</i></div></div><div class="stat-box"><div class="k">개근</div><div class="n">${rows.filter(r=>r.opMine>0&&r.days===r.opMine).length}<i>명</i></div></div></div>
     ${opDays?`<div class="chart"><h3>날짜별 참여 인원</h3><div class="bars">${chartDates.map(d=>{const v=byDate[d]?byDate[d].size:0;const dd=new Date(d+'T00:00:00');return `<div class="bar" title="${d} · ${v}명"><i style="height:${Math.max(3,v/max*100)}%"></i><u>${dd.getMonth()+1}/${dd.getDate()}</u></div>`}).join('')}</div></div>`:`<div class="chart"><p class="hint">이 범위에 아직 운영일이 없습니다.</p></div>`}
-    ${ROSTER.length?`<div class="tbl-scroll"><table><thead><tr><th>학생</th><th>학년</th>${CFG.useSignupDays?'<th>신청</th>':''}<th class="num">참여일</th><th class="num">누적시간</th><th class="num">지각</th><th class="num">사전불참</th><th class="num" style="min-width:130px">참여율</th></tr></thead><tbody>${rows.map(r=>`<tr data-hist="${r.id}" style="cursor:pointer"><td><b style="font-weight:600">${esc(r.name)}</b> <span style="color:var(--ink-400);font-family:var(--f-data);font-size:11.5px">${r.c}반 ${r.n}번</span> <span style="color:var(--lamp-deep);font-size:11px">📋</span></td><td><span class="pill g${r.g}">${r.g}학년</span></td>${CFG.useSignupDays?`<td style="font-family:var(--f-data);font-size:11.5px;color:var(--ink-500)">${daysLabel(findStudent(r.id)?.days)||'—'}</td>`:''}<td class="num">${r.days}${CFG.useSignupDays?` <span style="color:var(--ink-300)">/${r.opMine}</span>`:''}</td><td class="num">${fmtHours(r.min)}h</td><td class="num" style="color:${r.late?'var(--alert)':'var(--ink-300)'}">${r.late||'—'}</td><td class="num" style="color:${r.excused?'var(--info)':'var(--ink-300)'}">${r.excused||'—'}</td><td class="num"><span class="rate"><span>${r.rate}%</span><span class="rate-track"><i style="width:${Math.min(100,r.rate)}%"></i></span></span></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><b>등록된 학생이 없습니다</b>명렬표 탭에서 학생을 추가해 주세요.</div>`}`;
+    ${ROSTER.length?`<div class="tbl-scroll"><table><thead><tr><th>학생</th><th>학년</th>${CFG.useSignupDays?'<th>신청</th>':''}<th class="num">참여일</th><th class="num">누적시간</th><th class="num">퇴실미체크</th><th class="num">지각</th><th class="num">사전불참</th><th class="num" style="min-width:130px">참여율</th></tr></thead><tbody>${rows.map(r=>`<tr data-hist="${r.id}" style="cursor:pointer"><td><b style="font-weight:600">${esc(r.name)}</b> <span style="color:var(--ink-400);font-family:var(--f-data);font-size:11.5px">${r.c}반 ${r.n}번</span> <span style="color:var(--lamp-deep);font-size:11px">📋</span></td><td><span class="pill g${r.g}">${r.g}학년</span></td>${CFG.useSignupDays?`<td style="font-family:var(--f-data);font-size:11.5px;color:var(--ink-500)">${daysLabel(findStudent(r.id)?.days)||'—'}</td>`:''}<td class="num">${r.days}${CFG.useSignupDays?` <span style="color:var(--ink-300)">/${r.opMine}</span>`:''}</td><td class="num">${fmtHours(r.min)}h</td><td class="num" style="color:${r.noOut?'var(--alert)':'var(--ink-300)'}">${r.noOut||'—'}</td><td class="num" style="color:${r.late?'var(--alert)':'var(--ink-300)'}">${r.late||'—'}</td><td class="num" style="color:${r.excused?'var(--info)':'var(--ink-300)'}">${r.excused||'—'}</td><td class="num"><span class="rate"><span>${r.rate}%</span><span class="rate-track"><i style="width:${Math.min(100,r.rate)}%"></i></span></span></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><b>등록된 학생이 없습니다</b>명렬표 탭에서 학생을 추가해 주세요.</div>`}`;
   $$('[data-r]').forEach(b=>b.onclick=()=>{statRange=b.dataset.r;renderStats()});
   const sgb=$('#stat-grades');if(sgb){sgb.innerHTML=gradeChipsHTML('stat-grade');$$('.stat-grade').forEach(b=>b.onclick=()=>{gradeFilter=b.dataset.g;renderStats()})}
-  $('#stat-csv').onclick=()=>{const out=[['학교','장소','학년','반','번호','이름',...(CFG.useSignupDays?['신청요일']:[]),'참여일수','개인운영일','누적시간(분)','지각','사전불참','참여율(%)']];rows.forEach(r=>out.push([CFG.school,CFG.place,r.g,r.c,r.n,r.name,...(CFG.useSignupDays?[daysLabel(findStudent(r.id)?.days)]:[]),r.days,r.opMine,r.min,r.late,r.excused,r.rate]));downloadCSV(out,`풍산고_자기주도학습_통계_${dateKey()}.csv`)};
+  $('#stat-csv').onclick=()=>{const out=[['학교','장소','학년','반','번호','이름',...(CFG.useSignupDays?['신청요일']:[]),'참여일수','개인운영일','실제공부시간(분)','퇴실미체크','지각','사전불참','참여율(%)']];rows.forEach(r=>out.push([CFG.school,CFG.place,r.g,r.c,r.n,r.name,...(CFG.useSignupDays?[daysLabel(findStudent(r.id)?.days)]:[]),r.days,r.opMine,r.min,r.noOut,r.late,r.excused,r.rate]));downloadCSV(out,`풍산고_자기주도학습_통계_${dateKey()}.csv`)};
   $('#stat-grid-csv').onclick=exportMonthGrid;
   $$('#tab-stats [data-hist]').forEach(tr=>tr.onclick=()=>showStudentHistory(tr.dataset.hist));
 }
@@ -939,6 +957,7 @@ function renderSettings(){
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">기본</h3><div class="form-grid"><div class="field"><label for="cf-school">학교 이름</label><input class="input" id="cf-school" value="${esc(CFG.school)}"></div><div class="field"><label for="cf-place">장소</label><input class="input" id="cf-place" value="${esc(CFG.place)}"></div><div class="field" style="grid-column:1/-1"><label for="cf-url">배포 주소 (QR에 담길 주소)</label><input class="input" id="cf-url" placeholder="https://pungsan-sdl.netlify.app/" value="${esc(CFG.baseUrl)}"><p class="hint">이 파일을 올린 웹 주소를 넣어 주세요. 비워두면 지금 열려 있는 주소가 쓰이는데, 학생 휴대폰에서는 열리지 않을 수 있습니다.</p></div></div></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">시간</h3><div class="form-grid"><div class="field"><label for="cf-start">시작 시각</label><input class="input" id="cf-start" type="time" value="${CFG.startTime}"></div><div class="field"><label for="cf-end">종료 시각</label><input class="input" id="cf-end" type="time" value="${CFG.endTime}"></div><div class="field"><label for="cf-late">지각 기준 (시작 후 몇 분)</label><input class="input" id="cf-late" type="number" min="0" max="120" value="${CFG.lateAfter}"></div></div></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">운영 기간 · 요일</h3><div class="form-grid"><div class="field"><label for="cf-sd">운영 시작일</label><input class="input" id="cf-sd" type="date" value="${CFG.startDate}"></div><div class="field"><label for="cf-ed">운영 종료일</label><input class="input" id="cf-ed" type="date" value="${CFG.endDate}"></div></div><div class="field" style="margin-top:var(--s4)"><label>운영 요일</label><div style="display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:2px">${dayChips.map(([l,v])=>`<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--r-sm);border:1px solid var(--line-strong);background:var(--paper-1);font-size:13.5px;font-weight:600;cursor:pointer"><input type="checkbox" class="cf-day" value="${v}" ${(CFG.opDays||[]).includes(v)?'checked':''}> ${l}</label>`).join('')}</div></div></div>
+    <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s2)">운영시간 자동 출석</h3><div class="toggle-row"><div><div style="font-weight:600;font-size:14px">운영시간이면 자동으로 출석 받기</div><p class="hint" style="margin-top:2px">켜면 선생님이 QR을 열지 않아도, <b>운영일의 ${CFG.startTime}~${CFG.endTime}</b>에는 학생이 접속만 하면 바로 출석·퇴실할 수 있습니다. 고정 QR(또는 링크)을 자습실에 붙여두세요. 끄면 예전처럼 선생님이 직접 QR을 열어야 합니다.</p></div><label class="switch"><input type="checkbox" id="cf-autoopen" ${CFG.autoOpen?'checked':''}><span class="track"></span></label></div></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s2)">신청 요일 관리</h3><div class="toggle-row"><div><div style="font-weight:600;font-size:14px">학생별 신청 요일로 관리</div><p class="hint" style="margin-top:2px">켜면 명렬표에 요일 칸이 생기고, 참여율을 <b>신청한 날 기준</b>으로 계산합니다. 신청서 받은 뒤 켜세요.</p></div><label class="switch"><input type="checkbox" id="cf-usedays" ${CFG.useSignupDays?'checked':''}><span class="track"></span></label></div></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s3)">제외일</h3><p class="hint" style="margin-bottom:var(--s3)">이 날짜에는 자동으로 미운영으로 표시되고, 통계 분모(운영일)에서도 빠집니다.</p><div class="excl-list">${(CFG.exclusions||[]).map((e,i)=>`<div class="excl-item"><span class="d">${e.from}${e.to&&e.to!==e.from?` ~ ${e.to}`:''}</span><span class="r">${esc(e.reason||'제외일')}</span><button class="btn btn-ghost btn-sm" data-ex-del="${i}">삭제</button></div>`).join('')||'<p class="hint">등록된 제외일이 없습니다.</p>'}</div><div class="form-grid" style="margin-top:var(--s4)"><div class="field"><label for="ex-from">시작일</label><input class="input" id="ex-from" type="date"></div><div class="field"><label for="ex-to">종료일 (하루면 비워두기)</label><input class="input" id="ex-to" type="date"></div><div class="field"><label for="ex-reason">사유</label><input class="input" id="ex-reason" placeholder="예: 전국연합평가"></div></div><button class="btn btn-ghost" id="ex-add" style="margin-top:var(--s3)">제외일 추가</button></div>
     <div class="card" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s4)">교사용 PIN</h3><div class="form-grid"><div class="field"><label for="cf-pin">새 PIN (4~6자리)</label><input class="input" id="cf-pin" type="password" inputmode="numeric" maxlength="6" placeholder="바꾸지 않으려면 비워두세요" autocomplete="new-password"></div></div></div>
@@ -947,7 +966,7 @@ function renderSettings(){
     <div class="card" style="margin-top:var(--s5);border-color:rgba(196,70,42,.3);background:var(--alert-tint)"><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600;margin-bottom:var(--s2);color:var(--alert)">출석 기록 전체 초기화</h3><p class="hint" style="margin-bottom:var(--s3)">지금까지 쌓인 <b>모든 날짜의 출석·퇴실·사전불참 기록</b>을 삭제합니다. 시험 삼아 눌러본 참여일·누적시간이 전부 0으로 돌아갑니다. <b>명단·감독 배정·서명·설정은 그대로 유지</b>됩니다. 되돌릴 수 없으니, 필요하면 먼저 위에서 백업하세요.</p><button class="btn btn-danger" id="cf-reset">출석 기록 전체 초기화</button></div>`;
   $('#ex-add').onclick=async()=>{const from=$('#ex-from').value;if(!from)return toast('시작일을 골라 주세요.',true);const to=$('#ex-to').value||'',reason=$('#ex-reason').value.trim()||'제외일';CFG.exclusions=[...(CFG.exclusions||[]),{from,...(to&&to!==from?{to}:{}),reason}].sort((a,b)=>a.from.localeCompare(b.from));EXCL=expandExclusions(CFG.exclusions);await DB.set('config',CFG);toast('제외일을 추가했습니다.');renderSettings()};
   $$('[data-ex-del]').forEach(b=>b.onclick=async()=>{CFG.exclusions=(CFG.exclusions||[]).filter((_,i)=>i!==Number(b.dataset.exDel));EXCL=expandExclusions(CFG.exclusions);await DB.set('config',CFG);toast('제외일을 삭제했습니다.');renderSettings()});
-  $('#cf-save').onclick=async()=>{const pin=$('#cf-pin').value.trim();if(pin&&!/^\d{4,6}$/.test(pin))return toast('PIN은 숫자 4~6자리로 넣어 주세요.',true);const days=$$('.cf-day:checked').map(c=>Number(c.value)).sort();const start=$('#cf-start').value||'18:00',end=$('#cf-end').value||'21:00';CFG={...CFG,school:$('#cf-school').value.trim()||'풍산고등학교',place:$('#cf-place').value.trim()||'4층 지혜의 숲',baseUrl:$('#cf-url').value.trim(),startTime:start,endTime:end,sessionMin:Math.max(0,mins(end)-mins(start)),lateAfter:Number($('#cf-late').value)||0,startDate:$('#cf-sd').value||CFG.startDate,endDate:$('#cf-ed').value||CFG.endDate,opDays:days.length?days:[1,2,3,4],useSignupDays:$('#cf-usedays').checked};if(pin)CFG.pin=hashPin(pin);const ok=await DB.set('config',CFG);EXCL=expandExclusions(CFG.exclusions);applyBrand();updateConnBadge();if(!DB.isRemote)toast('이 기기에만 저장됨 — 온라인 연결이 안 됩니다.',true);else if(pin)toast('저장했습니다. 새 PIN이 모든 기기에 적용됩니다.');else toast('저장했습니다.');renderSettings()};
+  $('#cf-save').onclick=async()=>{const pin=$('#cf-pin').value.trim();if(pin&&!/^\d{4,6}$/.test(pin))return toast('PIN은 숫자 4~6자리로 넣어 주세요.',true);const days=$$('.cf-day:checked').map(c=>Number(c.value)).sort();const start=$('#cf-start').value||'18:00',end=$('#cf-end').value||'21:00';CFG={...CFG,school:$('#cf-school').value.trim()||'풍산고등학교',place:$('#cf-place').value.trim()||'4층 지혜의 숲',baseUrl:$('#cf-url').value.trim(),startTime:start,endTime:end,sessionMin:Math.max(0,mins(end)-mins(start)),lateAfter:Number($('#cf-late').value)||0,startDate:$('#cf-sd').value||CFG.startDate,endDate:$('#cf-ed').value||CFG.endDate,opDays:days.length?days:[1,2,3,4],useSignupDays:$('#cf-usedays').checked,autoOpen:$('#cf-autoopen').checked};if(pin)CFG.pin=hashPin(pin);const ok=await DB.set('config',CFG);EXCL=expandExclusions(CFG.exclusions);applyBrand();updateConnBadge();if(!DB.isRemote)toast('이 기기에만 저장됨 — 온라인 연결이 안 됩니다.',true);else if(pin)toast('저장했습니다. 새 PIN이 모든 기기에 적용됩니다.');else toast('저장했습니다.');renderSettings()};
   $('#cf-backup').onclick=backupAll;
   if($('#cf-reset'))$('#cf-reset').onclick=resetAllAttendance;
 }
