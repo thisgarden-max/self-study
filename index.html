@@ -476,7 +476,7 @@ async function loadToday(dk=dateKey()){
   TODAY={};ABSENT={};
   for(const k of attKeys){const p=k.split(':');if(p.length<4)continue;TODAY[p[2]]={t:p[3],key:k}}
   for(const k of outKeys){const p=k.split(':');if(p.length<4)continue;if(TODAY[p[2]]){TODAY[p[2]].out=p[3];TODAY[p[2]].outKey=k}}
-  for(const k of abKeys){const p=k.split(':');if(p.length<3)continue;const v=await DB.get(k);ABSENT[p[2]]={reason:(v&&v.reason)||'사전 불참',at:(v&&v.at)||'',key:k}}
+  for(const k of abKeys){const p=k.split(':');if(p.length<3)continue;const v=await DB.get(k);ABSENT[p[2]]={reason:(v&&v.reason)||'사전 불참',detail:(v&&v.detail)||'',at:(v&&v.at)||'',key:k}}
   SUP=sup||'';
   return TODAY;
 }
@@ -515,24 +515,30 @@ async function renderStudent(){
   if(absentMode&&st.open&&!rec){
     stage.innerHTML=`
       <div class="me-card"><div class="me-tag">${me.g}학년 ${me.c}반 ${me.n}번</div><div class="me-name">${esc(me.name)}</div><div class="me-sub">오늘 참여할 수 없나요?</div></div>
-      <div class="notice">사유를 고르면 <b>사전 불참</b>으로 기록됩니다. 무단결석과 구분되어 선생님께 전달돼요.</div>
+      <div class="notice">사유를 고르고, 필요하면 <b>간단히 적어</b> 주세요. <b>사전 불참</b>으로 기록되어 무단결석과 구분됩니다.</div>
       <div class="reason-grid">${ABSENCE_REASONS.map(r=>`<button class="reason-btn" data-reason="${esc(r)}">${esc(r)}</button>`).join('')}</div>
+      <div class="field" style="margin-top:var(--s2)"><label for="ab-detail">상세 사유 (선택)</label><input class="input" id="ab-detail" maxlength="40" placeholder="예: 수학 학원, 치과 진료" autocomplete="off"></div>
+      <button class="btn btn-primary" id="ab-submit" style="width:100%" disabled>사유를 선택해 주세요</button>
       <button class="btn btn-ghost" id="ab-cancel" style="width:100%">뒤로</button>`;
-    $$('[data-reason]').forEach(b=>b.onclick=()=>reportAbsent(b.dataset.reason));
+    let pickedReason='';
+    const submitBtn=$('#ab-submit');
+    $$('[data-reason]').forEach(b=>b.onclick=()=>{pickedReason=b.dataset.reason;$$('[data-reason]').forEach(x=>x.style.cssText='');b.style.cssText='border-color:var(--info);background:var(--info-tint)';submitBtn.disabled=false;submitBtn.textContent=`${pickedReason}(으)로 불참 신고하기`});
+    submitBtn.onclick=()=>{if(!pickedReason)return;const detail=($('#ab-detail').value||'').trim();reportAbsent(pickedReason,detail)};
+    $('#ab-detail').addEventListener('keydown',e=>{if(e.key==='Enter'&&pickedReason)submitBtn.click()});
     $('#ab-cancel').onclick=()=>{absentMode=false;renderStudent()};
     return;
   }
   let banner;
   if(!st.open)banner=`<div class="period-banner off"><i class="pulse"></i><p>오늘은 자기주도학습 <b>운영일이 아닙니다</b>${st.reason?` · ${esc(st.reason)}`:''}.</p></div>`;
   else if(!signup)banner=`<div class="period-banner off"><i class="pulse"></i><p>오늘(${DOW[new Date().getDay()]})은 <b>신청한 요일이 아닙니다</b>. 참여를 원하면 출석해도 됩니다.</p></div>`;
-  else if(ab&&!rec)banner=`<div class="period-banner excused"><i class="pulse"></i><p><b>사전 불참</b>으로 신고되어 있습니다 · ${esc(ab.reason)}</p></div>`;
+  else if(ab&&!rec)banner=`<div class="period-banner excused"><i class="pulse"></i><p><b>사전 불참</b>으로 신고되어 있습니다 · ${esc(ab.reason)}${ab.detail?` (${esc(ab.detail)})`:''}</p></div>`;
   else if(!sessionOpen){const before=st.open&&nowMin()<mins(CFG.startTime);banner=`<div class="period-banner"><i class="pulse"></i><p>${before?`출석은 <b>${CFG.startTime}부터</b> 받습니다. 조금만 기다려 주세요.`:`지금은 출석을 받고 있지 않습니다. ${CFG.autoOpen?'운영 시간에 다시 열립니다.':'<b>선생님이 QR을 띄우면</b> 열립니다.'}`}</p></div>`}
   else banner=`<div class="period-banner live"><i class="pulse"></i><p><b>자기주도학습</b> 출석을 받는 중입니다 (${CFG.startTime}~${CFG.endTime}).</p></div>`;
   let action='';
   if(!st.open)action=`<div class="notice">${esc(CFG.place||'')}<br>다음 운영일에 다시 만나요.</div>`;
   else if(rec&&rec.out){const sm=studyMinutes(rec);action=`<div class="stamp"><div class="stamp-mark">완료</div><h2>${esc(me.name)} 학생, 오늘도 수고했어요</h2><p>${prettyTime(rec.t)} 입실 · ${prettyTime(rec.out)} 퇴실</p><p style="font-family:var(--f-display);font-size:22px;font-weight:800;color:var(--lamp-deep);margin-top:6px">오늘 공부 ${fmtDur(sm)}</p></div>`}
   else if(rec){const late=isLate(rec.t);const canOut=sessionOpen&&codeOK;action=`<div class="stamp"><div class="stamp-mark">입실</div><h2>${esc(me.name)} 학생, 지금 공부 중</h2><p>${prettyTime(rec.t)} 입실${late?' · 지각':''} · 나갈 때 다시 찍어 주세요</p></div>${canOut?`<button class="tap" id="st-checkout">퇴실하기<small>지금 찍으면 공부시간이 기록됩니다</small></button>`:`<div class="notice">퇴실하려면 <b>화면의 QR을 다시 스캔</b>하거나 6자리 코드를 입력하세요.</div>${sessionOpen?`<div class="picker" style="margin-top:var(--s3)"><input class="input" id="st-code" maxlength="6" autocapitalize="characters" autocomplete="off" style="font-family:var(--f-data);font-size:20px;letter-spacing:.24em;text-align:center" placeholder="퇴실 코드"><button class="btn btn-primary" id="st-code-go2" style="width:100%;padding:12px;margin-top:var(--s2)">퇴실 코드 확인</button></div>`:''}`}`}
-  else if(ab)action=`<div class="stamp excused"><div class="stamp-mark">불참</div><h2>사전 불참 신고 완료</h2><p>${esc(ab.reason)}${ab.at?` · ${prettyTime(ab.at)} 신고`:''}</p></div><button class="btn btn-ghost" id="ab-undo" style="width:100%">신고 취소하고 출석하기</button>`;
+  else if(ab)action=`<div class="stamp excused"><div class="stamp-mark">불참</div><h2>사전 불참 신고 완료</h2><p>${esc(ab.reason)}${ab.detail?` · ${esc(ab.detail)}`:''}${ab.at?` · ${prettyTime(ab.at)} 신고`:''}</p></div><button class="btn btn-ghost" id="ab-undo" style="width:100%">신고 취소하고 출석하기</button>`;
   else if(codeOK)action=`<button class="tap" id="st-check">출석하기<small>누르면 바로 기록됩니다</small></button><div class="absent-link"><button id="ab-open">오늘 참여할 수 없어요 (사전 불참 신고)</button></div>`;
   else if(sessionOpen)action=`<div class="picker"><div class="field"><label for="st-code">화면의 6자리 코드</label><input class="input" id="st-code" maxlength="6" autocapitalize="characters" autocomplete="off" style="font-family:var(--f-data);font-size:22px;letter-spacing:.24em;text-align:center" placeholder="ABC123"></div><button class="btn btn-primary" id="st-code-go" style="width:100%;padding:13px">코드 확인</button><p class="hint" style="text-align:center">QR을 스캔하면 코드는 자동으로 입력됩니다.</p></div><div class="absent-link"><button id="ab-open">오늘 참여할 수 없어요 (사전 불참 신고)</button></div>`;
   else action=`<div class="notice">${esc(CFG.place||'')} 화면의 QR을 스캔하면 출석 버튼이 나타납니다.</div><div class="absent-link"><button id="ab-open">오늘 미리 불참 신고하기</button></div>`;
@@ -553,9 +559,49 @@ function renderPicker(){
   stage.innerHTML=`<div class="notice" style="margin-bottom:var(--s2)"><b>본인을 한 번만 선택해 주세요.</b><br>다음부터는 이 기기가 기억합니다.</div><div class="picker"><div class="picker-row"><div class="field"><label for="pk-g">학년</label><select class="input" id="pk-g">${grades.map(g=>`<option value="${g}">${g}학년</option>`).join('')}</select></div><div class="field"><label for="pk-c">반</label><select class="input" id="pk-c"></select></div></div><div class="name-grid" id="pk-names"></div></div><div class="absent-link" style="margin-top:var(--s3)"><button id="pk-self">명단에 내 이름이 없어요</button></div>`;
   const gSel=$('#pk-g'),cSel=$('#pk-c');
   function fillClasses(){const g=Number(gSel.value);const cs=[...new Set(ROSTER.filter(s=>s.g===g).map(s=>s.c))].sort((a,b)=>a-b);cSel.innerHTML=cs.map(c=>`<option value="${c}">${c}반</option>`).join('');fillNames()}
-  function fillNames(){const g=Number(gSel.value),c=Number(cSel.value);const list=ROSTER.filter(s=>s.g===g&&s.c===c);$('#pk-names').innerHTML=list.map(s=>`<button class="name-btn" data-id="${s.id}"><i>${s.n}</i>${esc(s.name)}</button>`).join('')||`<div class="hint" style="grid-column:1/-1;text-align:center;padding:var(--s5)">해당 반에 등록된 학생이 없습니다.</div>`;$$('#pk-names .name-btn').forEach(b=>b.onclick=async()=>{ME=b.dataset.id;await DB.set('me',ME,false);renderStudent()})}
+  function fillNames(){const g=Number(gSel.value),c=Number(cSel.value);const list=ROSTER.filter(s=>s.g===g&&s.c===c);$('#pk-names').innerHTML=list.map(s=>`<button class="name-btn" data-id="${s.id}"><i>${s.n}</i>${esc(s.name)}</button>`).join('')||`<div class="hint" style="grid-column:1/-1;text-align:center;padding:var(--s5)">해당 반에 등록된 학생이 없습니다.</div>`;$$('#pk-names .name-btn').forEach(b=>b.onclick=()=>startPinFlow(b.dataset.id))}
   gSel.onchange=fillClasses;cSel.onchange=fillNames;fillClasses();
   $('#pk-self').onclick=renderSelfEnroll;
+}
+async function startPinFlow(id){
+  const s=findStudent(id);if(!s)return;
+  const stored=await DB.get('spin:'+id);
+  if(stored)renderPinVerify(id,stored);
+  else renderPinSet(id);
+}
+function pinPad(id,mode){
+  // mode: 'set1' | 'set2' | 'verify'
+  const s=findStudent(id);
+  const titles={set1:'새 PIN 4자리 설정',set2:'PIN 다시 한 번',verify:'PIN 입력'};
+  const subs={set1:'다음부터 이 PIN으로 본인 확인을 해요',set2:'확인을 위해 한 번 더 입력해 주세요',verify:'본인이 맞는지 확인합니다'};
+  return `<div class="me-card"><div class="me-tag">${s.g}학년 ${s.c}반 ${s.n}번</div><div class="me-name" style="font-size:30px">${esc(s.name)}</div><div class="me-sub">${subs[mode]}</div></div>
+    <div class="field" style="max-width:280px;margin:0 auto"><label style="text-align:center">${titles[mode]}</label><input class="input" id="pin-field" type="password" inputmode="numeric" maxlength="4" autocomplete="off" style="font-family:var(--f-data);font-size:30px;letter-spacing:.5em;text-align:center;padding-left:.5em" placeholder="••••"></div>
+    <button class="btn btn-primary" id="pin-next" style="width:100%;max-width:280px;margin:var(--s3) auto 0;display:block">확인</button>
+    <button class="btn btn-ghost" id="pin-back" style="width:100%;max-width:280px;margin:var(--s2) auto 0;display:block">뒤로</button>`;
+}
+let _pinFirst='';
+function renderPinSet(id){
+  _pinFirst='';
+  const stage=$('#st-stage');stage.innerHTML=pinPad(id,'set1');
+  const f=$('#pin-field');setTimeout(()=>f.focus(),60);
+  $('#pin-back').onclick=renderPicker;
+  const go=()=>{const v=(f.value||'').trim();if(!/^\d{4}$/.test(v))return toast('숫자 4자리로 정해 주세요.',true);_pinFirst=v;renderPinSetConfirm(id)};
+  $('#pin-next').onclick=go;f.addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+}
+function renderPinSetConfirm(id){
+  const stage=$('#st-stage');stage.innerHTML=pinPad(id,'set2');
+  const f=$('#pin-field');setTimeout(()=>f.focus(),60);
+  $('#pin-back').onclick=()=>renderPinSet(id);
+  const go=async()=>{const v=(f.value||'').trim();if(v!==_pinFirst)return toast('두 번 입력한 PIN이 다릅니다. 다시 설정해 주세요.',true);await DB.set('spin:'+id,hashPin(v));ME=id;await DB.set('me',ME,false);_pinFirst='';toast('PIN을 설정했어요. 이제 이 기기가 기억합니다.');renderStudent()};
+  $('#pin-next').onclick=go;f.addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+}
+function renderPinVerify(id,stored){
+  const stage=$('#st-stage');stage.innerHTML=pinPad(id,'verify')+`<div class="notice" style="margin-top:var(--s3)"><button class="linkbtn" id="pin-forgot">PIN을 잊었어요</button></div>`;
+  const f=$('#pin-field');setTimeout(()=>f.focus(),60);
+  $('#pin-back').onclick=renderPicker;
+  const go=async()=>{const v=(f.value||'').trim();if(hashPin(v)!==stored)return toast('PIN이 맞지 않습니다.',true);ME=id;await DB.set('me',ME,false);toast('확인되었습니다.');renderStudent()};
+  $('#pin-next').onclick=go;f.addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+  $('#pin-forgot').onclick=()=>{toast('담당 선생님께 PIN 초기화를 요청하세요.',true)};
 }
 function renderSelfEnroll(){
   $('#st-change').classList.remove('hidden');
@@ -577,15 +623,14 @@ function renderSelfEnroll(){
     const exists=findStudent(id);
     if(exists){
       if(!confirm(`${g}학년 ${c}반 ${n}번은 이미 '${exists.name}'(으)로 등록되어 있습니다. 본인이 맞나요?`))return;
-      ME=id;
+      const stored=await DB.get('spin:'+id);
+      if(stored)return renderPinVerify(id,stored);
+      return renderPinSet(id);
     }else{
       ROSTER=sortRoster([...ROSTER,{g,c,n,name,id,walkin:true}]);
       await DB.set('roster',ROSTER);
-      ME=id;
+      return renderPinSet(id);
     }
-    await DB.set('me',ME,false);
-    toast('등록했습니다. 이제 출석하세요.');
-    renderStudent();
   };
 }
 async function doCheckIn(){
@@ -624,7 +669,7 @@ async function doCheckOut(){
   const sm=studyMinutes({t:rec.t,out:t});
   toast(`퇴실했습니다. 오늘 ${fmtDur(sm)} 공부했어요!`);
 }
-async function reportAbsent(reason){const st=dayStatus();if(!st.open){toast('오늘은 운영일이 아닙니다.',true);absentMode=false;return renderStudent()}await DB.set(`ab:${dateKey()}:${ME}`,{reason,at:hhmm()});absentMode=false;await renderStudent();toast(`사전 불참으로 신고했습니다 · ${reason}`)}
+async function reportAbsent(reason,detail=''){const st=dayStatus();if(!st.open){toast('오늘은 운영일이 아닙니다.',true);absentMode=false;return renderStudent()}await DB.set(`ab:${dateKey()}:${ME}`,{reason,detail:detail||'',at:hhmm()});absentMode=false;await renderStudent();toast(`사전 불참으로 신고했습니다 · ${reason}${detail?` (${detail})`:''}`)}
 async function undoAbsent(){const ab=ABSENT[ME];if(ab)await DB.del(ab.key);await renderStudent();toast('불참 신고를 취소했습니다.')}
 async function renderMyStats(){
   const box=$('#st-mystats');if(!box)return;
@@ -687,7 +732,7 @@ async function renderToday(){
     <div class="sign-card"><div class="sign-head"><h3>감독 교사 확인 서명</h3><div style="font-family:var(--f-data);font-size:12px;color:var(--ink-400)">${d.getMonth()+1}월 ${d.getDate()}일 · 감독 ${SUP?esc(SUP):'미배정'}</div></div>
       <div id="sign-area"></div></div>`;
   const seats=$('#seats');
-  seats.innerHTML=seatList.map(s=>{const r=TODAY[s.id],ab=ABSENT[s.id]&&!r,late=r&&isLate(r.t),done=r&&r.out,signup=isSignupDay(s,d);const cls=[`g${s.g}`,done?'done':(r?'lit':''),late&&!done?'late':'',ab?'excused':'',(CFG.useSignupDays&&!signup)?'notsignup':''].filter(Boolean).join(' ');const timeTxt=r?(done?`${prettyTime(r.t)}~${prettyTime(r.out)}`:prettyTime(r.t)):(ab?esc(ab.reason):'··:··');const outTag=done?`<span class="seat-out">${fmtDur(studyMinutes(r))}</span>`:(r?`<span class="seat-out" style="color:var(--lamp-deep)">재실</span>`:'');return `<button class="seat ${cls}" data-id="${s.id}"><span class="seat-grade"></span><span class="seat-g-label">${s.g}</span><div class="no">${s.c}-${s.n}</div><div class="nm">${esc(s.name)}</div><div class="tm">${timeTxt}</div>${outTag}</button>`}).join('')||`<div class="empty" style="grid-column:1/-1"><b>${ROSTER.length?'해당 학년 학생이 없습니다':'등록된 학생이 없습니다'}</b>${ROSTER.length?'':'명렬표 탭에서 학생을 추가해 주세요.'}</div>`;
+  seats.innerHTML=seatList.map(s=>{const r=TODAY[s.id],ab=ABSENT[s.id]&&!r,late=r&&isLate(r.t),done=r&&r.out,signup=isSignupDay(s,d);const cls=[`g${s.g}`,done?'done':(r?'lit':''),late&&!done?'late':'',ab?'excused':'',(CFG.useSignupDays&&!signup)?'notsignup':''].filter(Boolean).join(' ');const timeTxt=r?(done?`${prettyTime(r.t)}~${prettyTime(r.out)}`:prettyTime(r.t)):(ab?esc(ab.reason):'··:··');const outTag=done?`<span class="seat-out">${fmtDur(studyMinutes(r))}</span>`:(r?`<span class="seat-out" style="color:var(--lamp-deep)">재실</span>`:'');const tip=ab?` title="사전불참: ${esc(ab.reason)}${ab.detail?' · '+esc(ab.detail):''}"`:'';return `<button class="seat ${cls}" data-id="${s.id}"${tip}><span class="seat-grade"></span><span class="seat-g-label">${s.g}</span><div class="no">${s.c}-${s.n}</div><div class="nm">${esc(s.name)}</div><div class="tm">${timeTxt}</div>${outTag}</button>`}).join('')||`<div class="empty" style="grid-column:1/-1"><b>${ROSTER.length?'해당 학년 학생이 없습니다':'등록된 학생이 없습니다'}</b>${ROSTER.length?'':'명렬표 탭에서 학생을 추가해 주세요.'}</div>`;
   const gbox=$('#td-grades');if(gbox){gbox.innerHTML=gradeChipsHTML('td-grade');$$('.td-grade').forEach(b=>b.onclick=()=>{gradeFilter=b.dataset.g;renderToday()})}
   $$('#seats .seat').forEach(b=>b.onclick=()=>toggleSeatOn(b.dataset.id));
   $('#td-refresh').onclick=renderToday;$('#td-csv').onclick=()=>exportDay(viewDate);
@@ -779,11 +824,11 @@ async function clearDayAttendance(dk){
 function exportDay(dk){
   const d=new Date(dk+'T00:00:00');
   const rows=[['학교','장소','날짜','요일','감독','학년','반','번호','이름','상태','입실시각','퇴실시각','공부시간(분)','사유']];
-  ROSTER.forEach(s=>{if(CFG.useSignupDays&&!isSignupDay(s,d))return;const r=TODAY[s.id],ab=ABSENT[s.id]&&!r;const status=r?(r.out?'퇴실완료':(isLate(r.t)?'재실(지각)':'재실')):(ab?'사전불참':'미출석');const sm=r&&r.out?studyMinutes(r):'';rows.push([CFG.school,CFG.place,dk,DOW[d.getDay()],SUP,s.g,s.c,s.n,s.name,status,r?prettyTime(r.t):'',r&&r.out?prettyTime(r.out):(r?'퇴실 미기록':''),sm,ab?ABSENT[s.id].reason:''])});
+  ROSTER.forEach(s=>{if(CFG.useSignupDays&&!isSignupDay(s,d))return;const r=TODAY[s.id],ab=ABSENT[s.id]&&!r;const status=r?(r.out?'퇴실완료':(isLate(r.t)?'재실(지각)':'재실')):(ab?'사전불참':'미출석');const sm=r&&r.out?studyMinutes(r):'';const abTxt=ab?(ABSENT[s.id].reason+(ABSENT[s.id].detail?` (${ABSENT[s.id].detail})`:'')):'';rows.push([CFG.school,CFG.place,dk,DOW[d.getDay()],SUP,s.g,s.c,s.n,s.name,status,r?prettyTime(r.t):'',r&&r.out?prettyTime(r.out):(r?'퇴실 미기록':''),sm,abTxt])});
   downloadCSV(rows,`풍산고_자기주도학습_${dk}.csv`);
 }
 async function toggleSeat(id){const s=findStudent(id);if(!s)return;const r=TODAY[id];if(r){if(!confirm(`${s.name} 학생의 출석을 지울까요?`))return;await DB.del(r.key);toast(`${s.name} 출석을 지웠습니다.`)}else{if(ABSENT[id])await DB.del(ABSENT[id].key);await DB.set(`att:${dateKey()}:${id}:${hhmm(new Date())}`,1);toast(`${s.name} 출석 처리했습니다.`)}await loadToday();renderToday()}
-function exportToday(){const rows=[['학교','장소','날짜','감독','학년','반','번호','이름','상태','출석시각','사유','인정시간(분)']];const dk=dateKey(),d=new Date();ROSTER.forEach(s=>{if(CFG.useSignupDays&&!isSignupDay(s,d))return;const r=TODAY[s.id],ab=ABSENT[s.id]&&!r;const status=r?(isLate(r.t)?'지각':'출석'):(ab?'사전불참':'미출석');rows.push([CFG.school,CFG.place,dk,SUP,s.g,s.c,s.n,s.name,status,r?prettyTime(r.t):'',ab?ABSENT[s.id].reason:'',r?sessionMinutes():0])});downloadCSV(rows,`풍산고_자기주도학습_${dk}.csv`)}
+function exportToday(){const rows=[['학교','장소','날짜','감독','학년','반','번호','이름','상태','출석시각','사유','인정시간(분)']];const dk=dateKey(),d=new Date();ROSTER.forEach(s=>{if(CFG.useSignupDays&&!isSignupDay(s,d))return;const r=TODAY[s.id],ab=ABSENT[s.id]&&!r;const status=r?(isLate(r.t)?'지각':'출석'):(ab?'사전불참':'미출석');const abTxt=ab?(ABSENT[s.id].reason+(ABSENT[s.id].detail?` (${ABSENT[s.id].detail})`:'')):'';rows.push([CFG.school,CFG.place,dk,SUP,s.g,s.c,s.n,s.name,status,r?prettyTime(r.t):'',abTxt,r?sessionMinutes():0])});downloadCSV(rows,`풍산고_자기주도학습_${dk}.csv`)}
 
 let ttlTimer=null,rotateTimer=null;
 async function renderQR(){
@@ -920,8 +965,9 @@ function renderRosterTable(){
   const cnt=$('#ro-count');if(cnt)cnt.textContent=`${list.length}명${gradeFilter!=='all'?` (${gradeFilter}학년)`:''}`;
   const tb=$('#ro-tbody');
   if(tb){
-    tb.innerHTML=list.map(s=>`<tr><td><span class="pill g${s.g}">${s.g}학년</span></td><td>${s.c}반</td><td>${s.n}번</td><td style="font-weight:600">${esc(s.name)}${s.walkin?' <span class="pill" style="border-color:var(--info);color:var(--info)">당일</span>':''}</td>${useDays?`<td style="font-family:var(--f-data);font-size:12px;color:var(--ink-500)">${daysLabel(s.days)||'전 요일'}</td>`:''}<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-del="${s.id}">삭제</button></td></tr>`).join('')||`<tr><td colspan="${useDays?6:5}" style="text-align:center;color:var(--ink-400);padding:var(--s5)">해당 학년 학생이 없습니다.</td></tr>`;
+    tb.innerHTML=list.map(s=>`<tr><td><span class="pill g${s.g}">${s.g}학년</span></td><td>${s.c}반</td><td>${s.n}번</td><td style="font-weight:600">${esc(s.name)}${s.walkin?' <span class="pill" style="border-color:var(--info);color:var(--info)">당일</span>':''}</td>${useDays?`<td style="font-family:var(--f-data);font-size:12px;color:var(--ink-500)">${daysLabel(s.days)||'전 요일'}</td>`:''}<td style="text-align:right"><button class="btn btn-ghost btn-sm" data-pin="${s.id}" style="margin-right:4px">PIN 초기화</button><button class="btn btn-ghost btn-sm" data-del="${s.id}">삭제</button></td></tr>`).join('')||`<tr><td colspan="${useDays?6:5}" style="text-align:center;color:var(--ink-400);padding:var(--s5)">해당 학년 학생이 없습니다.</td></tr>`;
     $$('#ro-tbody [data-del]').forEach(b=>b.onclick=async()=>{ROSTER=ROSTER.filter(s=>s.id!==b.dataset.del);await DB.set('roster',ROSTER);toast('학생을 삭제했습니다.');renderRoster()});
+    $$('#ro-tbody [data-pin]').forEach(b=>b.onclick=async()=>{const s=findStudent(b.dataset.pin);if(!s)return;if(!confirm(`${s.name} 학생의 PIN을 초기화할까요?\n다음 접속 때 PIN을 새로 설정하게 됩니다.`))return;await DB.del('spin:'+b.dataset.pin);toast(`${s.name} PIN을 초기화했습니다.`)});
   }
 }
 let dvDay=(()=>{const t=new Date().getDay();return (CFG.opDays||[1,2,3,4]).includes(t)?t:(CFG.opDays||[1,2,3,4])[0]})();
@@ -1118,9 +1164,9 @@ async function backupAll(){
   const supKeys=await DB.list('sup:');const supMap={};for(const k of supKeys){supMap[k.split(':')[1]]=await DB.get(k)}
   const rows=[['학교','장소','날짜','감독','구분','학년','반','번호','이름','출석시각','사유','인정시간(분)']];const smin=sessionMinutes();const recs=[];
   attAll.forEach(k=>{const p=k.split(':');if(p.length<4)return;recs.push({date:p[1],id:p[2],t:p[3],kind:'att'})});
-  for(const k of abAll){const p=k.split(':');if(p.length<3)continue;const v=await DB.get(k);recs.push({date:p[1],id:p[2],kind:'ab',reason:(v&&v.reason)||''})}
+  for(const k of abAll){const p=k.split(':');if(p.length<3)continue;const v=await DB.get(k);recs.push({date:p[1],id:p[2],kind:'ab',reason:(v&&v.reason)||'',detail:(v&&v.detail)||''})}
   recs.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
-  recs.forEach(rec=>{const s=findStudent(rec.id)||{g:'',c:'',n:'',name:rec.id};if(rec.kind==='att')rows.push([CFG.school,CFG.place,rec.date,supMap[rec.date]||'',isLate(rec.t)?'지각':'출석',s.g,s.c,s.n,s.name,prettyTime(rec.t),'',smin]);else rows.push([CFG.school,CFG.place,rec.date,supMap[rec.date]||'','사전불참',s.g,s.c,s.n,s.name,'',rec.reason,0])});
+  recs.forEach(rec=>{const s=findStudent(rec.id)||{g:'',c:'',n:'',name:rec.id};if(rec.kind==='att')rows.push([CFG.school,CFG.place,rec.date,supMap[rec.date]||'',isLate(rec.t)?'지각':'출석',s.g,s.c,s.n,s.name,prettyTime(rec.t),'',smin]);else rows.push([CFG.school,CFG.place,rec.date,supMap[rec.date]||'','사전불참',s.g,s.c,s.n,s.name,'',rec.reason+(rec.detail?` (${rec.detail})`:''),0])});
   if(rows.length===1)return toast('백업할 기록이 없습니다.',true);
   downloadCSV(rows,`풍산고_자기주도학습_전체백업_${dateKey()}.csv`);toast(`${rows.length-1}건을 내려받았습니다.`);
 }
