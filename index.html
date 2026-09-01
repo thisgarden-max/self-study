@@ -952,14 +952,24 @@ async function renderStats(){
   const opDays=opDatesAll.length,totalCheck=rows.reduce((a,r)=>a+r.days,0),avg=opDays?Math.round(totalCheck/opDays*10)/10:0;
   const chartDates=opDatesAll.slice(-40),max=Math.max(1,...chartDates.map(d=>(byDate[d]?byDate[d].size:0)));
   el.innerHTML=`<div class="p-title"><div><div class="brandline">${esc(CFG.school)} · ${esc(CFG.place)}</div><div class="eyebrow" style="margin-bottom:5px">${statRange==='month'?'이번 달':statRange==='3m'?'최근 3개월':'최근 1년'} · 운영 ${CFG.startDate}~${CFG.endDate}${CFG.useSignupDays?' · 신청요일 반영':''}</div><h2>참여 통계</h2></div>
-    <div class="p-actions"><div style="display:flex;gap:2px;padding:3px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm)" id="stat-grades"></div><div style="display:flex;gap:2px;padding:3px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm)"><button data-r="month" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='month'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">이번 달</button><button data-r="3m" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='3m'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">3개월</button><button data-r="12m" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='12m'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">1년</button></div><button class="btn btn-sm" id="stat-csv">엑셀로 내려받기</button><button class="btn btn-primary btn-sm" id="stat-grid-csv">이번 달 출석부(엑셀) 내려받기</button></div></div>
+    <div class="p-actions"><div style="display:flex;gap:2px;padding:3px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm)" id="stat-grades"></div><div style="display:flex;gap:2px;padding:3px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm)"><button data-r="month" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='month'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">이번 달</button><button data-r="3m" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='3m'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">3개월</button><button data-r="12m" class="btn btn-ghost btn-sm" style="box-shadow:none;border:0;${statRange==='12m'?'background:var(--lamp-tint);color:var(--lamp-ink)':''}">1년</button></div><button class="btn btn-sm" id="stat-csv">엑셀로 내려받기</button><select class="input" id="stat-grid-month" style="width:auto;padding:6px 28px 6px 10px;font-size:12.5px"></select><button class="btn btn-primary btn-sm" id="stat-grid-csv">출석부(엑셀) 내려받기</button></div></div>
     <div class="stat-row"><div class="stat-box"><div class="k">운영일</div><div class="n">${opDays}<i>일</i></div></div><div class="stat-box"><div class="k">하루 평균 참여</div><div class="n">${avg}<i>명</i></div></div><div class="stat-box"><div class="k">누적 참여시간</div><div class="n">${Math.round(rows.reduce((a,r)=>a+r.min,0)/60)}<i>시간</i></div></div><div class="stat-box"><div class="k">개근</div><div class="n">${rows.filter(r=>r.opMine>0&&r.days===r.opMine).length}<i>명</i></div></div></div>
     ${opDays?`<div class="chart"><h3>날짜별 참여 인원</h3><div class="bars">${chartDates.map(d=>{const v=byDate[d]?byDate[d].size:0;const dd=new Date(d+'T00:00:00');return `<div class="bar" title="${d} · ${v}명"><i style="height:${Math.max(3,v/max*100)}%"></i><u>${dd.getMonth()+1}/${dd.getDate()}</u></div>`}).join('')}</div></div>`:`<div class="chart"><p class="hint">이 범위에 아직 운영일이 없습니다.</p></div>`}
     ${ROSTER.length?`<div class="tbl-scroll"><table><thead><tr><th>학생</th><th>학년</th>${CFG.useSignupDays?'<th>신청</th>':''}<th class="num">참여일</th><th class="num">누적시간</th><th class="num">퇴실미체크</th><th class="num">지각</th><th class="num">사전불참</th><th class="num" style="min-width:130px">참여율</th></tr></thead><tbody>${rows.map(r=>`<tr data-hist="${r.id}" style="cursor:pointer"><td><b style="font-weight:600">${esc(r.name)}</b> <span style="color:var(--ink-400);font-family:var(--f-data);font-size:11.5px">${r.c}반 ${r.n}번</span> <span style="color:var(--lamp-deep);font-size:11px">📋</span></td><td><span class="pill g${r.g}">${r.g}학년</span></td>${CFG.useSignupDays?`<td style="font-family:var(--f-data);font-size:11.5px;color:var(--ink-500)">${daysLabel(findStudent(r.id)?.days)||'—'}</td>`:''}<td class="num">${r.days}${CFG.useSignupDays?` <span style="color:var(--ink-300)">/${r.opMine}</span>`:''}</td><td class="num">${fmtHours(r.min)}h</td><td class="num" style="color:${r.noOut?'var(--alert)':'var(--ink-300)'}">${r.noOut||'—'}</td><td class="num" style="color:${r.late?'var(--alert)':'var(--ink-300)'}">${r.late||'—'}</td><td class="num" style="color:${r.excused?'var(--info)':'var(--ink-300)'}">${r.excused||'—'}</td><td class="num"><span class="rate"><span>${r.rate}%</span><span class="rate-track"><i style="width:${Math.min(100,r.rate)}%"></i></span></span></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><b>등록된 학생이 없습니다</b>명렬표 탭에서 학생을 추가해 주세요.</div>`}`;
   $$('[data-r]').forEach(b=>b.onclick=()=>{statRange=b.dataset.r;renderStats()});
   const sgb=$('#stat-grades');if(sgb){sgb.innerHTML=gradeChipsHTML('stat-grade');$$('.stat-grade').forEach(b=>b.onclick=()=>{gradeFilter=b.dataset.g;renderStats()})}
   $('#stat-csv').onclick=()=>{const out=[['학교','장소','학년','반','번호','이름',...(CFG.useSignupDays?['신청요일']:[]),'참여일수','개인운영일','실제공부시간(분)','퇴실미체크','지각','사전불참','참여율(%)']];rows.forEach(r=>out.push([CFG.school,CFG.place,r.g,r.c,r.n,r.name,...(CFG.useSignupDays?[daysLabel(findStudent(r.id)?.days)]:[]),r.days,r.opMine,r.min,r.noOut,r.late,r.excused,r.rate]));downloadCSV(out,`풍산고_자기주도학습_통계_${dateKey()}.csv`)};
-  $('#stat-grid-csv').onclick=exportMonthGrid;
+  const mSel=$('#stat-grid-month');
+  if(mSel){
+    // 운영 기간 내 월 목록 생성
+    const months=[];
+    let d=new Date((CFG.startDate||dateKey()).slice(0,7)+'-01T00:00:00');
+    const end=new Date((CFG.endDate||dateKey()).slice(0,7)+'-01T00:00:00');
+    while(d<=end){months.push(monthKey(d));d.setMonth(d.getMonth()+1)}
+    const cur=monthKey();
+    mSel.innerHTML=months.map(m=>`<option value="${m}" ${m===cur?'selected':''}>${m.slice(0,4)}년 ${Number(m.slice(5,7))}월</option>`).join('');
+  }
+  $('#stat-grid-csv').onclick=()=>exportMonthGrid($('#stat-grid-month')?$('#stat-grid-month').value:monthKey());
   $$('#tab-stats [data-hist]').forEach(tr=>tr.onclick=()=>showStudentHistory(tr.dataset.hist));
 }
 async function showStudentHistory(id){
@@ -1080,14 +1090,14 @@ function loadExcelJS(){
   return _exceljsLoading;
 }
 function attMark(rec,ab){if(rec)return isLate(rec.t)?'△':'O';if(ab)return '×';return ''}
-async function exportMonthGrid(){
+async function exportMonthGrid(mkArg){
   toast('엑셀 모듈을 불러오는 중…');
   const loaded=await loadExcelJS();
-  if(!loaded||typeof ExcelJS==='undefined'){toast('엑셀 모듈을 불러오지 못했습니다. 대신 CSV로 내려받습니다.',true);return exportMonthGridCSV()}
-  toast('이번 달 출석부를 만드는 중…');
-  const mk=monthKey();
+  if(!loaded||typeof ExcelJS==='undefined'){toast('엑셀 모듈을 불러오지 못했습니다. 대신 CSV로 내려받습니다.',true);return exportMonthGridCSV(mkArg)}
+  toast('출석부를 만드는 중…');
+  const mk=mkArg||monthKey();
   const dates=operatingDatesInMonth(Number(mk.slice(0,4)),Number(mk.slice(5,7)));
-  if(!dates.length)return toast('이번 달 운영일이 없습니다.',true);
+  if(!dates.length)return toast(`${mk.slice(0,4)}년 ${Number(mk.slice(5,7))}월에는 운영일이 없습니다.`,true);
   // 날짜별 데이터 수집 (출석/사전불참/감독/서명)
   const attByDate={},abByDate={},supByDate={},signByDate={};
   for(const dk of dates){
@@ -1181,10 +1191,10 @@ async function exportMonthGrid(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`풍산고_자기주도학습_출석부_${mk}.xlsx`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},400);
   toast('이번 달 출석부(엑셀)를 내려받았습니다.');
 }
-async function exportMonthGridCSV(){
-  const mk=monthKey();
+async function exportMonthGridCSV(mkArg){
+  const mk=mkArg||monthKey();
   const dates=operatingDatesInMonth(Number(mk.slice(0,4)),Number(mk.slice(5,7)));
-  if(!dates.length)return toast('이번 달 운영일이 없습니다.',true);
+  if(!dates.length)return toast('해당 월에 운영일이 없습니다.',true);
   const attByDate={},abByDate={},supByDate={},signByDate={};
   for(const dk of dates){const [attKeys,abKeys,sup,sign]=await Promise.all([DB.list('att:'+dk),DB.list('ab:'+dk),DB.get('sup:'+dk),DB.get('sign:'+dk)]);const am={};for(const k of attKeys){const p=k.split(':');if(p.length<4)continue;am[p[2]]={t:p[3]}}const bm={};for(const k of abKeys){const p=k.split(':');if(p.length<3)continue;bm[p[2]]=true}attByDate[dk]=am;abByDate[dk]=bm;supByDate[dk]=sup||'';signByDate[dk]=sign&&sign.img?(sign.by||'서명'):''}
   function weekStart(dk){const d=new Date(dk+'T00:00:00');const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return dateKey(d)}
