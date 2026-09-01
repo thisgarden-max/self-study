@@ -169,6 +169,14 @@ textarea.input{resize:vertical;font-family:var(--f-data);font-size:13px;line-hei
 .seat.notsignup{opacity:.5}
 .seat.notsignup::after{content:'미신청';position:absolute;bottom:3px;right:4px;font-family:var(--f-data);font-size:8px;color:var(--ink-400)}
 .seat.extra::after{content:'추가';position:absolute;bottom:3px;right:4px;font-family:var(--f-data);font-size:8px;color:var(--info);font-weight:600}
+#seat-modal{position:fixed;inset:0;z-index:150;background:rgba(22,26,40,.5);display:flex;align-items:center;justify-content:center;padding:var(--s4);animation:fade .2s var(--ease)}
+.seat-sheet{background:var(--paper-1);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s5);width:100%;max-width:340px;box-shadow:var(--shadow-lg)}
+.seat-sheet h3{font-family:var(--f-display);font-size:20px;font-weight:800;letter-spacing:-.02em;text-align:center}
+.seat-sheet .who{font-family:var(--f-data);font-size:12px;color:var(--ink-400);text-align:center;margin-top:2px}
+.seat-sheet .cur{text-align:center;font-size:13px;color:var(--ink-500);margin:var(--s3) 0 var(--s4);padding:var(--s2);background:var(--paper-2);border-radius:var(--r-sm)}
+.seat-sheet .acts{display:flex;flex-direction:column;gap:var(--s2)}
+.time-row{display:flex;gap:var(--s2);align-items:center;margin-bottom:var(--s2)}
+.time-row input{flex:1}
 .seat-grade{position:absolute;top:0;left:0;width:0;height:0;border-top:16px solid var(--paper-3);border-right:16px solid transparent}
 .seat.g2 .seat-grade{border-top-color:var(--ink-300)}
 .seat-g-label{position:absolute;top:0;left:2px;font-family:var(--f-data);font-size:8px;line-height:1.2;color:var(--ink-700)}
@@ -758,23 +766,54 @@ async function renderToday(){
   if($('#wi-addonly'))$('#wi-addonly').onclick=()=>addWalkin(false);
   if($('#wi-name'))$('#wi-name').addEventListener('keydown',e=>{if(e.key==='Enter')addWalkin(true)});
   mountSignature(viewDate,sign);
-  if(isToday)pollTimer=setInterval(async()=>{if(curTab!=='today'||viewDate!==dateKey()||busySeat)return;const prev=JSON.stringify(TODAY);await loadToday();if(busySeat)return;if(JSON.stringify(TODAY)!==prev)renderToday()},15000);
+  if(isToday)pollTimer=setInterval(async()=>{if(curTab!=='today'||viewDate!==dateKey()||busySeat||$('#seat-modal'))return;const prev=JSON.stringify(TODAY);await loadToday();if(busySeat||$('#seat-modal'))return;if(JSON.stringify(TODAY)!==prev)renderToday()},15000);
 }
 // viewDate 기준으로 출결 토글
 async function toggleSeatOn(id){
-  if(busySeat)return;busySeat=true;
-  try{
-    const s=findStudent(id);if(!s)return;const r=TODAY[id];
-    if(r){
-      if(!confirm(`${s.name} 학생의 출석을 지울까요?`))return;
-      if(!DB.isRemote){toast('온라인 연결이 안 된 상태에서는 삭제가 반영되지 않습니다. 연결(주황 배지) 확인 후 다시 시도하세요.',true);return}
-      await DB.del(r.key);if(r.outKey)await DB.del(r.outKey);
-      toast(`${s.name} 출석을 지웠습니다.`)
-    }
-    else{if(!DB.isRemote){toast('온라인 연결이 안 된 상태입니다. 연결 확인 후 다시 시도하세요.',true);return}if(ABSENT[id])await DB.del(ABSENT[id].key);await DB.set(`att:${viewDate}:${id}:${hhmm(new Date())}`,1);toast(`${s.name} 출석 처리했습니다.`)}
-    await loadToday(viewDate);
-  }finally{busySeat=false}
-  renderToday();
+  const s=findStudent(id);if(!s)return;const r=TODAY[id],ab=ABSENT[id]&&!r;
+  // 미출석·불참 학생: 바로 출석 처리
+  if(!r){
+    if(!DB.isRemote)return toast('온라인 연결이 안 된 상태입니다. 연결 확인 후 다시 시도하세요.',true);
+    if(ab){if(!confirm(`${s.name} 학생을 출석 처리할까요? (사전 불참 취소)`))return;await DB.del(ABSENT[id].key)}
+    await DB.set(`att:${viewDate}:${id}:${hhmm(new Date())}`,1);
+    toast(`${s.name} 출석 처리했습니다.`);await loadToday(viewDate);return renderToday();
+  }
+  // 출석한 학생: 액션 시트
+  openSeatSheet(id);
+}
+function openSeatSheet(id){
+  const s=findStudent(id),r=TODAY[id];if(!s||!r)return;
+  const done=!!r.out;
+  const cur=done?`입실 ${prettyTime(r.t)} · 퇴실 ${prettyTime(r.out)} · ${fmtDur(studyMinutes(r))}`:`입실 ${prettyTime(r.t)} · 재실 중 (퇴실 미기록)`;
+  const modal=document.createElement('div');modal.id='seat-modal';
+  modal.innerHTML=`<div class="seat-sheet" onclick="event.stopPropagation()">
+    <h3>${esc(s.name)}</h3><div class="who">${s.g}학년 ${s.c}반 ${s.n}번</div>
+    <div class="cur">${cur}</div>
+    ${!done?`<div class="time-row"><input class="input" id="seat-outtime" type="time" value="${CFG.endTime}"><button class="btn btn-primary" id="seat-checkout" style="white-space:nowrap">퇴실 처리</button></div><p class="hint" style="margin-bottom:var(--s4)">학생이 퇴실을 깜빡했을 때, 나간 시각을 넣고 퇴실 처리하면 공부시간이 인정됩니다.</p>`:`<button class="btn btn-ghost" id="seat-uncheckout" style="width:100%;margin-bottom:var(--s2)">퇴실 취소 (다시 재실로)</button>`}
+    <div class="acts"><button class="btn btn-danger" id="seat-del">출석 삭제</button><button class="btn btn-ghost" id="seat-cancel">닫기</button></div>
+  </div>`;
+  modal.onclick=()=>modal.remove();
+  document.body.appendChild(modal);
+  $('#seat-cancel').onclick=()=>modal.remove();
+  if($('#seat-checkout'))$('#seat-checkout').onclick=async()=>{
+    if(!DB.isRemote)return toast('온라인 연결 확인 후 다시 시도하세요.',true);
+    const v=($('#seat-outtime').value||'').replace(':','');
+    if(!/^\d{4}$/.test(v))return toast('퇴실 시각을 넣어 주세요.',true);
+    if(v<=r.t)return toast('퇴실 시각이 입실보다 빨라요.',true);
+    await DB.set(`out:${viewDate}:${id}:${v}`,1);
+    modal.remove();toast(`${s.name} 퇴실 처리 (${fmtDur(studyMinutes({t:r.t,out:v}))})`);await loadToday(viewDate);renderToday();
+  };
+  if($('#seat-uncheckout'))$('#seat-uncheckout').onclick=async()=>{
+    if(!DB.isRemote)return toast('온라인 연결 확인 후 다시 시도하세요.',true);
+    if(r.outKey)await DB.del(r.outKey);
+    modal.remove();toast(`${s.name} 퇴실을 취소했습니다.`);await loadToday(viewDate);renderToday();
+  };
+  $('#seat-del').onclick=async()=>{
+    if(!DB.isRemote)return toast('온라인 연결이 안 된 상태에서는 삭제가 반영되지 않습니다.',true);
+    if(!confirm(`${s.name} 학생의 출석을 지울까요?`))return;
+    await DB.del(r.key);if(r.outKey)await DB.del(r.outKey);
+    modal.remove();toast(`${s.name} 출석을 지웠습니다.`);await loadToday(viewDate);renderToday();
+  };
 }
 async function addWalkin(alsoCheck){
   const g=parseInt($('#wi-g').value,10),c=parseInt($('#wi-c').value,10),n=parseInt($('#wi-n').value,10),name=$('#wi-name').value.trim();
