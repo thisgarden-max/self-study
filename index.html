@@ -484,6 +484,8 @@ const hhmm=(d=new Date())=>`${pad(d.getHours())}${pad(d.getMinutes())}`;
 const prettyTime=t=>`${t.slice(0,2)}:${t.slice(2)}`;
 const DOW=['일','월','화','수','목','금','토'];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// 이름 가운데 글자 가리기: 김민수→김O수, 이든→이O, 남궁민수→남OO수
+function maskName(name){const s=String(name||'').trim();const n=[...s].length;if(n<=1)return s;if(n===2)return [...s][0]+'O';const arr=[...s];return arr[0]+'O'.repeat(n-2)+arr[n-1]}
 const mins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m};
 const nowMin=(d=new Date())=>d.getHours()*60+d.getMinutes();
 let toastTimer;
@@ -618,7 +620,7 @@ function renderPicker(){
   stage.innerHTML=`<div class="notice" style="margin-bottom:var(--s2)"><b>본인을 한 번만 선택해 주세요.</b><br>다음부터는 이 기기가 기억합니다.</div><div class="picker"><div class="picker-row"><div class="field"><label for="pk-g">학년</label><select class="input" id="pk-g">${grades.map(g=>`<option value="${g}">${g}학년</option>`).join('')}</select></div><div class="field"><label for="pk-c">반</label><select class="input" id="pk-c"></select></div></div><div class="name-grid" id="pk-names"></div></div><div class="absent-link" style="margin-top:var(--s3)"><button id="pk-self">명단에 내 이름이 없어요</button></div>`;
   const gSel=$('#pk-g'),cSel=$('#pk-c');
   function fillClasses(){const g=Number(gSel.value);const cs=[...new Set(ROSTER.filter(s=>s.g===g).map(s=>s.c))].sort((a,b)=>a-b);cSel.innerHTML=cs.map(c=>`<option value="${c}">${c}반</option>`).join('');fillNames()}
-  function fillNames(){const g=Number(gSel.value),c=Number(cSel.value);const list=ROSTER.filter(s=>s.g===g&&s.c===c);$('#pk-names').innerHTML=list.map(s=>`<button class="name-btn" data-id="${s.id}"><i>${s.n}</i>${esc(s.name)}</button>`).join('')||`<div class="hint" style="grid-column:1/-1;text-align:center;padding:var(--s5)">해당 반에 등록된 학생이 없습니다.</div>`;$$('#pk-names .name-btn').forEach(b=>b.onclick=()=>startPinFlow(b.dataset.id))}
+  function fillNames(){const g=Number(gSel.value),c=Number(cSel.value);const list=ROSTER.filter(s=>s.g===g&&s.c===c);$('#pk-names').innerHTML=list.map(s=>`<button class="name-btn" data-id="${s.id}"><i>${s.n}</i>${esc(maskName(s.name))}</button>`).join('')||`<div class="hint" style="grid-column:1/-1;text-align:center;padding:var(--s5)">해당 반에 등록된 학생이 없습니다.</div>`;$$('#pk-names .name-btn').forEach(b=>b.onclick=()=>startPinFlow(b.dataset.id))}
   gSel.onchange=fillClasses;cSel.onchange=fillNames;fillClasses();
   $('#pk-self').onclick=renderSelfEnroll;
 }
