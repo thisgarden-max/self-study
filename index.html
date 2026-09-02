@@ -216,6 +216,8 @@ textarea.input{resize:vertical;font-family:var(--f-data);font-size:13px;line-hei
 .seat.notsignup{opacity:.5}
 .seat.notsignup::after{content:'미신청';position:absolute;bottom:3px;right:4px;font-family:var(--f-data);font-size:8px;color:var(--ink-400)}
 .seat.extra::after{content:'추가';position:absolute;bottom:3px;right:4px;font-family:var(--f-data);font-size:8px;color:var(--info);font-weight:600}
+.seats.editable .seat{cursor:pointer;box-shadow:0 0 0 1px var(--lamp-tint2)}
+.seats.editable .seat:hover{border-color:var(--lamp-deep)}
 #seat-modal{position:fixed;inset:0;z-index:150;background:rgba(22,26,40,.5);display:flex;align-items:center;justify-content:center;padding:var(--s4);animation:fade .2s var(--ease)}
 .seat-sheet{background:var(--paper-1);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s5);width:100%;max-width:340px;box-shadow:var(--shadow-lg)}
 .seat-sheet h3{font-family:var(--f-display);font-size:20px;font-weight:800;letter-spacing:-.02em;text-align:center}
@@ -540,6 +542,7 @@ async function loadToday(dk=dateKey()){
 function studyMinutes(rec){if(!rec||!rec.t||!rec.out)return null;const a=Number(rec.t.slice(0,2))*60+Number(rec.t.slice(2)),b=Number(rec.out.slice(0,2))*60+Number(rec.out.slice(2));return Math.max(0,b-a)}
 function fmtDur(m){if(m==null)return '-';if(m<60)return `${m}분`;const h=Math.floor(m/60),r=m%60;return r?`${h}시간 ${r}분`:`${h}시간`}
 let viewDate=dateKey();
+let editMode=false;
 let busySeat=false;
 async function loadSign(dk){return await DB.get('sign:'+dk)}
 const findStudent=id=>ROSTER.find(s=>s.id===id)||null;
@@ -766,7 +769,7 @@ $('#pin-go').onclick=async()=>{
 $('#pin-in').addEventListener('keydown',e=>{if(e.key==='Enter')$('#pin-go').click()});
 $('#t-exit').onclick=showStudent;
 let curTab='today',pollTimer=null;
-function openTab(name){curTab=name;$$('#t-nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));['today','qr','supervisor','stats','roster','settings'].forEach(t=>$('#tab-'+t).classList.toggle('hidden',t!==name));stopTeacherPoll();({today:renderToday,qr:renderQR,supervisor:renderSupervisor,stats:renderStats,roster:renderRoster,settings:renderSettings})[name]()}
+function openTab(name){curTab=name;if(name!=='today')editMode=false;$$('#t-nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));['today','qr','supervisor','stats','roster','settings'].forEach(t=>$('#tab-'+t).classList.toggle('hidden',t!==name));stopTeacherPoll();({today:renderToday,qr:renderQR,supervisor:renderSupervisor,stats:renderStats,roster:renderRoster,settings:renderSettings})[name]()}
 $$('#t-nav button').forEach(b=>b.onclick=()=>openTab(b.dataset.tab));
 function stopTeacherPoll(){if(pollTimer){clearInterval(pollTimer);pollTimer=null}}
 
@@ -790,18 +793,19 @@ async function renderToday(){
   const extraN=seatList.filter(s=>CFG.useSignupDays&&!isSignupDay(s,d)&&TODAY[s.id]).length;
   const inN=lit-doneN;
   el.innerHTML=`<div class="p-title"><div><div class="brandline">${esc(CFG.school)} · ${esc(CFG.place)}</div><div class="eyebrow" style="margin-bottom:5px">${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${DOW[d.getDay()]}요일 · ${CFG.startTime}~${CFG.endTime}</div><h2>${isToday?'오늘의 지혜의 숲':'지난 출석 조회'}</h2><span class="day-flag ${st.open?'open':'closed'}">${st.open?'운영일':'미운영'}${st.open?'':` · ${esc(st.reason)}`}</span><span class="sup-flag ${SUP?'':'none'}">감독 ${SUP?esc(SUP):'미배정'}</span></div>
-    <div class="p-actions"><div class="date-nav"><button id="td-prev" title="이전 날">‹</button><span class="cur" id="td-cur">${d.getMonth()+1}/${d.getDate()} ${DOW[d.getDay()]}</span><button id="td-next" title="다음 날" ${isToday?'disabled style="opacity:.3;pointer-events:none"':''}>›</button></div>${!isToday?'<button class="btn btn-ghost btn-sm" id="td-today">오늘로</button>':''}<button class="btn btn-ghost btn-sm" id="td-refresh">새로고침</button>${isToday?'<button class="btn btn-sm" id="td-walkin">당일 학생 추가</button>':''}<button class="btn btn-sm" id="td-csv">이 날 명단 내려받기</button><button class="btn btn-danger btn-sm" id="td-clear">이 날 출석 비우기</button>${isToday?'<button class="btn btn-primary btn-sm" id="td-qr">QR 띄우기</button>':''}</div></div>
+    <div class="p-actions"><div class="date-nav"><button id="td-prev" title="이전 날">‹</button><span class="cur" id="td-cur">${d.getMonth()+1}/${d.getDate()} ${DOW[d.getDay()]}</span><button id="td-next" title="다음 날" ${isToday?'disabled style="opacity:.3;pointer-events:none"':''}>›</button></div>${!isToday?'<button class="btn btn-ghost btn-sm" id="td-today">오늘로</button>':''}<button class="btn btn-ghost btn-sm" id="td-refresh">새로고침</button><button class="btn btn-sm" id="td-edit" style="${editMode?'background:var(--lamp);color:#2A1A02;border-color:var(--lamp-deep)':''}">${editMode?'🔓 수정 모드 (켜짐)':'🔒 자리 수정'}</button>${isToday?'<button class="btn btn-sm" id="td-walkin">당일 학생 추가</button>':''}<button class="btn btn-sm" id="td-csv">이 날 명단 내려받기</button><button class="btn btn-danger btn-sm" id="td-clear">이 날 출석 비우기</button>${isToday?'<button class="btn btn-primary btn-sm" id="td-qr">QR 띄우기</button>':''}</div></div>
     <div id="walkin-box" class="card hidden" style="margin-bottom:var(--s5)"><h3 style="font-family:var(--f-display);font-size:15px;font-weight:600;margin-bottom:var(--s2)">신청 안 한 학생이 왔나요?</h3><p class="hint" style="margin-bottom:var(--s3)">명렬표에 없는 학생을 지금 추가하고 바로 출석 처리합니다. 이미 명단에 있는 학생이면 자리를 눌러 출석시키면 됩니다.</p><div class="form-grid" style="margin-bottom:var(--s3)"><div class="field"><label for="wi-g">학년</label><input class="input" id="wi-g" type="number" min="1" max="3" placeholder="1"></div><div class="field"><label for="wi-c">반</label><input class="input" id="wi-c" type="number" min="1" placeholder="3"></div><div class="field"><label for="wi-n">번호</label><input class="input" id="wi-n" type="number" min="1" placeholder="12"></div><div class="field"><label for="wi-name">이름</label><input class="input" id="wi-name" placeholder="홍길동"></div></div><div style="display:flex;gap:var(--s2);flex-wrap:wrap"><button class="btn btn-primary" id="wi-add">추가하고 출석 처리</button><button class="btn btn-ghost" id="wi-addonly">명단에만 추가</button><button class="btn btn-ghost" id="wi-cancel">닫기</button></div></div>
     <div class="room"><div class="room-head"><div class="room-count"><b>${lit}</b><span>/ ${targets.length}</span><u>출석${inN?` · 재실 ${inN}`:''}${doneN?` · 퇴실 ${doneN}`:''}${lateN?` · 지각 ${lateN}`:''}${exN?` · 사전불참 ${exN}`:''}${noshow?` · 미출석 ${noshow}`:''}${extraN?` · 추가참여 ${extraN}`:''}</u></div><div style="display:flex;gap:2px;padding:3px;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm)" id="td-grades"></div></div>
-    <div class="seats" id="seats"></div>
-    <div class="room-legend"><span class="lg on"><i></i>재실 중</span><span class="lg ex" style="--info:var(--info)"><i style="background:var(--info);border-color:var(--info)"></i>퇴실 완료</span><span class="lg lt"><i></i>지각</span><span class="lg off"><i></i>미출석</span><span class="lg" style="color:var(--info)">추가 = 미신청 요일 참여</span><span class="lg" style="margin-left:auto">자리를 누르면 출결을 직접 고칠 수 있습니다</span></div></div>
+    <div class="seats${editMode?' editable':''}" id="seats"></div>
+    <div class="room-legend"><span class="lg on"><i></i>재실 중</span><span class="lg ex" style="--info:var(--info)"><i style="background:var(--info);border-color:var(--info)"></i>퇴실 완료</span><span class="lg lt"><i></i>지각</span><span class="lg off"><i></i>미출석</span><span class="lg" style="color:var(--info)">추가 = 미신청 요일 참여</span><span class="lg" style="margin-left:auto;${editMode?'color:var(--lamp-ink);font-weight:600':''}">${editMode?'✏️ 수정 모드 — 자리를 눌러 출결을 고칠 수 있습니다':'👀 보기 전용 — 고치려면 「자리 수정」을 켜세요'}</span></div></div>
     <div class="sign-card"><div class="sign-head"><h3>감독 교사 확인 서명</h3><div style="font-family:var(--f-data);font-size:12px;color:var(--ink-400)">${d.getMonth()+1}월 ${d.getDate()}일 · 감독 ${SUP?esc(SUP):'미배정'}</div></div>
       <div id="sign-area"></div></div>`;
   const seats=$('#seats');
   seats.innerHTML=seatList.map(s=>{const r=TODAY[s.id],ab=ABSENT[s.id]&&!r,late=r&&isLate(r.t),done=r&&r.out,signup=isSignupDay(s,d);const hasRec=TODAY[s.id]||ABSENT[s.id];const isExtra=CFG.useSignupDays&&!signup&&hasRec;const isNotSignup=CFG.useSignupDays&&!signup&&!hasRec;const cls=[`g${s.g}`,done?'done':(r?'lit':''),late&&!done?'late':'',ab?'excused':'',isNotSignup?'notsignup':'',isExtra?'extra':''].filter(Boolean).join(' ');const timeTxt=r?(done?`${prettyTime(r.t)}~${prettyTime(r.out)}`:prettyTime(r.t)):(ab?esc(ab.reason):'··:··');const outTag=done?`<span class="seat-out">${fmtDur(studyMinutes(r))}</span>`:(r?`<span class="seat-out" style="color:var(--lamp-deep)">재실</span>`:'');const tip=ab?` title="사전불참: ${esc(ab.reason)}${ab.detail?' · '+esc(ab.detail):''}"`:(isExtra?' title="신청하지 않은 요일에 참여함"':'');return `<button class="seat ${cls}" data-id="${s.id}"${tip}><span class="seat-grade"></span><span class="seat-g-label">${s.g}</span><div class="no">${s.c}-${s.n}</div><div class="nm">${esc(s.name)}</div><div class="tm">${timeTxt}</div>${outTag}</button>`}).join('')||`<div class="empty" style="grid-column:1/-1"><b>${ROSTER.length?'오늘 참여 대상이 없습니다':'등록된 학생이 없습니다'}</b>${ROSTER.length?'신청한 학생이 없거나, 아직 아무도 오지 않았어요.':'명렬표 탭에서 학생을 추가해 주세요.'}</div>`;
   const gbox=$('#td-grades');if(gbox){gbox.innerHTML=gradeChipsHTML('td-grade');$$('.td-grade').forEach(b=>b.onclick=()=>{gradeFilter=b.dataset.g;renderToday()})}
-  $$('#seats .seat').forEach(b=>b.onclick=()=>toggleSeatOn(b.dataset.id));
+  $$('#seats .seat').forEach(b=>b.onclick=()=>{if(!editMode){toast('자리를 고치려면 먼저 「자리 수정」을 켜세요.');return}toggleSeatOn(b.dataset.id)});
   $('#td-refresh').onclick=renderToday;$('#td-csv').onclick=()=>exportDay(viewDate);
+  if($('#td-edit'))$('#td-edit').onclick=()=>{editMode=!editMode;toast(editMode?'자리 수정 모드를 켰습니다. 자리를 눌러 출결을 고칠 수 있어요.':'자리 수정 모드를 껐습니다.');renderToday()};
   if($('#td-clear'))$('#td-clear').onclick=()=>clearDayAttendance(viewDate);
   $('#td-prev').onclick=()=>{const nd=new Date(viewDate+'T00:00:00');nd.setDate(nd.getDate()-1);viewDate=dateKey(nd);renderToday()};
   $('#td-next').onclick=()=>{const nd=new Date(viewDate+'T00:00:00');nd.setDate(nd.getDate()+1);if(dateKey(nd)<=dateKey())viewDate=dateKey(nd);renderToday()};
@@ -1295,8 +1299,6 @@ function downloadCSV(rows,filename){const body=rows.map(r=>r.map(c=>{const v=Str
   ME=await DB.get('me',false);
   tickClock();setInterval(tickClock,20000);
   showStudent();
-  // 학생 화면: 세션/출석 상태를 주기적으로 새로고침 (기기 간 동기화)
-  setInterval(()=>{if(!$('#v-student').classList.contains('hidden')&&!absentMode)renderStudent()},20000);
 })();
 </script>
 </body>
