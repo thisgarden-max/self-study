@@ -890,10 +890,18 @@ async function addWalkin(alsoCheck){
   await loadToday(viewDate);renderToday();
 }
 // ── 감독 전자서명 ──
-function mountSignature(dk,existing){
+fmtSignAt(at){
+  if(!at) return '';
+  if(/Z$|[+-]\d{2}:\d{2}$/.test(at)){        // 구버전 UTC 기록
+    const d = new Date(at);
+    if(!isNaN(d)) return `${dateKey(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  return at.replace('T',' ').slice(0,16);    // 신버전 로컬 기록
+}
+  function mountSignature(dk,existing){
   const area=$('#sign-area');if(!area)return;
   if(existing&&existing.img){
-    area.innerHTML=`<div class="sign-pad-wrap signed"><img class="sign-saved-img" src="${existing.img}" alt="감독 서명"></div><div class="sign-meta">${esc(existing.by||SUP||'감독')} · ${existing.at?existing.at.replace('T',' ').slice(0,16):''} 서명함</div><div style="display:flex;gap:var(--s2);margin-top:var(--s3)"><button class="btn btn-ghost btn-sm" id="sg-redo">다시 서명</button></div>`;
+    area.innerHTML=`<div class="sign-pad-wrap signed"><img class="sign-saved-img" src="${existing.img}" alt="감독 서명"></div><div class="sign-meta">${esc(existing.by||SUP||'감독')} · ${fmtSignAt(existing.at)} 서명함</div><div style="display:flex;gap:var(--s2);margin-top:var(--s3)"><button class="btn btn-ghost btn-sm" id="sg-redo">다시 서명</button></div>`;
     $('#sg-redo').onclick=async()=>{await DB.del('sign:'+dk);toast('서명을 지웠습니다.');renderToday()};
     return;
   }
@@ -909,7 +917,8 @@ function mountSignature(dk,existing){
   cv.addEventListener('mousedown',start);cv.addEventListener('mousemove',move);window.addEventListener('mouseup',end);
   cv.addEventListener('touchstart',start,{passive:false});cv.addEventListener('touchmove',move,{passive:false});cv.addEventListener('touchend',end);
   $('#sg-clear').onclick=()=>{ctx.clearRect(0,0,cv.width,cv.height);dirty=false;const h=$('#sg-hint');if(h)h.style.display=''};
-  $('#sg-save').onclick=async()=>{if(!dirty)return toast('먼저 서명을 그려 주세요.',true);const by=($('#sg-name').value||SUP||'감독').trim();const img=cv.toDataURL('image/png');const ok=await DB.set('sign:'+dk,{img,by,at:new Date().toISOString()});if(!ok)return toast('저장 실패. 다시 시도해 주세요.',true);toast('감독 서명을 저장했습니다.');renderToday()};
+  $('#sg-save').onclick=async()=>{if(!dirty)return toast('먼저 서명을 그려 주세요.',true);const by=($('#sg-name').value||SUP||'감독').trim();const img=cv.toDataURL('image/png');const now=new Date();
+const ok=await DB.set('sign:'+dk,{img,by,at:`${dateKey(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}`});if(!ok)return toast('저장 실패. 다시 시도해 주세요.',true);toast('감독 서명을 저장했습니다.');renderToday()};
 }
 async function clearDayAttendance(dk){
   const d=new Date(dk+'T00:00:00');
